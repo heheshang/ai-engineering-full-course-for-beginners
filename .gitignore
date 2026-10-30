@@ -30,3 +30,11 @@ stocks.db
 # CrewAI local storage
 storage.db
 *.db-journal
+
+# DeepEval 评测产物
+.deepeval/
+evals/reports/
+evals/.pytest_cache/
+
+# pytest
+.pytest_cache/

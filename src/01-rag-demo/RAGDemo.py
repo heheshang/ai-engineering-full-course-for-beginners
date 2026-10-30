@@ -54,10 +54,18 @@ TOP_K = 3
 
 # Agent 的系统提示词：规定角色、强制先检索再回答、禁止编造（幻觉防护）。
 # system_prompt 会被作为 SystemMessage 放在对话开头，作用类似于"人设与规则说明"。
+#
+# 「Focus only on what the question asks」这一句是评测驱动出来的：
+# 没有它时，模型会把检索到的每个 chunk 都复述一遍
+# （连「上下文没覆盖 Q-learning 等算法」这种元评论也会写进去），
+# 导致回答切题分数偏低。加了之后回答才真正聚焦。
 SYSTEM_PROMPT = """You are a helpful assistant answering questions about AI.
 Use the `search_documents` tool to look up information in the knowledge base before
 answering. Base your answer only on the retrieved context. If the context does not
-contain the answer, say that you don't know instead of making something up."""
+contain the answer, say that you don't know instead of making something up.
+Focus only on what the question actually asks; do not restate unrelated parts of
+the context, and do not add meta-commentary about what the context does or does
+not cover."""
 
 
 def print_header(step: str, title: str) -> None:

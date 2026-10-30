@@ -34,6 +34,7 @@ SERPER_API_KEY=...
 | `src/07-tools-and-agents-demo/` | 工具调用与多智能体（CrewAI 三个实战） |
 | `src/08-huggingface-demo/` | HuggingFace 本地模型：摘要 / 翻译 / 向量 / 图像理解 |
 | `src/utils/` | 公共工具（统一日志 + DeepSeek 兼容代理） |
+| `evals/` | DeepEval 评测套件（RAG / Agent / 提示 / 链 / 记忆） |
 | `tools/` | 开发辅助脚本（批量接入日志、静态检查） |
 
 ## 演示清单
@@ -203,6 +204,89 @@ llm = LLM(
 
 设置 `PROXY_DEBUG=1` 可以打印 tool-call 参数的解析状态，便于排查截断问题。
 
+## 评测体系（DeepEval）
+
+`evals/` 目录是一套基于 [DeepEval](https://github.com/confident-ai/deepeval)
+的完整评测套件，覆盖 RAG、Agent、提示工程、链式编排、对话记忆五个方向。
+
+### 设计原则
+
+**能用确定性断言的，就别用 LLM 评判。**
+
+「有没有感叹号」「工具参数里的订单号对不对」这类事实，用正则判断
+既快又准还零成本；而「语气够不够共情」这类主观维度才交给 LLM 裁判。
+所以套件被分成两类：
+
+* **离线用例**（`test_offline_ingestion.py`）：纯断言，秒级完成，
+  不需要任何 API Key，适合每次提交都跑；
+* **LLM 评判用例**：标记了 `llm_judge`，未配置凭据时自动跳过。
+
+### 评测清单
+
+| 测试文件 | 覆盖范围 | 核心指标 |
+| --- | --- | --- |
+| `test_rag_quality.py` | RAG 检索 + 生成 | Answer Relevancy / Faithfulness / Contextual Precision·Recall·Relevancy / GEval |
+| `test_agent_tools.py` | 工具调用 | Tool Correctness / Task Completion / GEval |
+| `test_prompt_engineering.py` | 提示工程 | 格式约束断言 / Answer Relevancy / Toxicity / Bias / GEval |
+| `test_chains.py` | 链式编排 | 路由正确性断言 / SQL 可执行性断言 / GEval |
+| `test_memory.py` | 对话记忆 | 跨轮召回 / 工具参数 / 会话隔离 / Turn Contextual Relevancy |
+| `test_offline_ingestion.py` | 切分与加载（离线） | 切分完整性 / 重叠 / 元数据 / 表格保留 |
+
+RAG 评测的核心是**把检索与生成拆开评**：只评最终答案时，
+分数低无法区分是「没检索到」还是「检索到了但没用好」。
+
+* `Faithfulness` 低 → 生成阶段在编造；
+* `Contextual Recall` 低 → 检索阶段漏了；
+* `Contextual Precision` 低 → 检索排序差。
+
+### 运行
+
+```bash
+# 全部评测（需要 DEEPSEEK_API_KEY）
+pytest
+
+# 只跑离线用例，无需任何 API Key
+EVAL_SKIP_LLM=1 pytest
+
+# 只跑某个方向
+pytest evals/test_rag_quality.py
+
+# 跳过耗时用例（CI 里做快速回归）
+pytest -m "not slow"
+
+# 带报告的完整运行
+python evals/run_eval.py --suite rag --threshold 0.7
+```
+
+### 裁判模型配置
+
+裁判模型通过环境变量切换，默认直连 DeepSeek：
+
+```dotenv
+EVAL_JUDGE_PROVIDER=deepeval   # deepeval / openai / proxy / ollama
+EVAL_JUDGE_MODEL=deepseek-chat
+EVAL_THRESHOLD=0.5             # 指标通过阈值
+EVAL_SKIP_LLM=0                # 设为 1 则跳过所有 LLM 评判用例
+```
+
+* `deepeval`：使用 deepeval 内置的 DeepSeek 集成（推荐）；
+* `proxy`：走本项目的 OpenAI 兼容代理（`src/utils/deepseek_proxy.py`）；
+* `ollama`：本地模型，完全离线。
+
+### 目录结构
+
+```
+evals/
+├── conftest.py        # pytest fixture（裁判模型、检索器、Agent）
+├── eval_config.py     # 裁判模型配置 + 评测数据集
+├── sut.py             # 被测系统适配层（把演示脚本包装成可调用函数）
+├── run_eval.py        # 独立运行脚本（带报告）
+└── test_*.py          # 各方向的评测用例
+```
+
+`sut.py` 是关键：它把 `src/` 下那些「执行即打印」的演示脚本，
+包装成可重复调用的函数，让评测既测**真实实现**、又能稳定断言。
+
 ## 运行示例
 
 ```bash
@@ -224,3 +308,4 @@ python src/07-tools-and-agents-demo/CrewAI_Usecase3_Trading_Platform.py
 * `src/04-document-loaders-demo/data/make_sample_pdf.py` 会在系统字体路径中
   查找可用的 CJK 字体；找不到时 PDF 中的中文将无法被正确提取。
 * 各演示脚本的向量库持久化目录为 `chroma_db/`（已加入 `.gitignore`）。
+* 评测会调用真实模型，建议先跑 `EVAL_SKIP_LLM=1 pytest` 确认环境正常。
