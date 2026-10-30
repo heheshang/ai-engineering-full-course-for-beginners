@@ -42,6 +42,18 @@ import json
 import tempfile
 from pathlib import Path
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 准备工作
 # --------------------------------------------------------------------------- #
@@ -70,6 +82,7 @@ loader = CSVLoader(file_path=str(CSV_PATH))
 # load() 一次性把整个文件读进内存，返回 List[Document]。
 # 大文件场景应该用 lazy_load()，返回迭代器，逐行处理不占内存。
 documents = loader.load()
+logger.info("CSVLoader 加载完成，共 %d 个 Document（每行一个）", len(documents))
 
 print(f"共加载 {len(documents)} 个 Document\n")
 
@@ -79,6 +92,7 @@ print("--- documents[0].page_content ---")
 print(first_doc.page_content)
 print("\n--- documents[0].metadata ---")
 print(json.dumps(first_doc.metadata, indent=2, ensure_ascii=False))
+logger.info("首条 Document 的 metadata：%s", first_doc.metadata)
 
 # 打印一条最后一条，方便确认行号递增
 print("\n--- documents[-1].metadata ---")
@@ -110,6 +124,7 @@ with open(tsv_path, "w", encoding="utf-8", newline="") as f:
 
 tsv_loader = CSVLoader(file_path=str(tsv_path), csv_args={"delimiter": "\t"})
 tsv_documents = tsv_loader.load()
+logger.info("TSV 加载完成，共 %d 个 Document（分隔符改为 \\t）", len(tsv_documents))
 
 print(f"TSV 加载 {len(tsv_documents)} 个 Document")
 print("--- documents[0].page_content ---")
@@ -127,6 +142,8 @@ print("=" * 70)
 
 source_loader = CSVLoader(file_path=str(CSV_PATH), source_column="name")
 source_documents = source_loader.load()
+logger.info("source_column='name' 加载完成，共 %d 个 Document（metadata.source 指向业务字段）",
+             len(source_documents))
 
 print("--- 前 3 条的 metadata ---")
 for doc in source_documents[:3]:
@@ -149,6 +166,8 @@ meta_loader = CSVLoader(
     metadata_columns=["category", "stock", "price"],
 )
 meta_documents = meta_loader.load()
+logger.info("metadata_columns 模式加载完成，共 %d 个 Document（category/stock/price 已抽到 metadata）",
+             len(meta_documents))
 
 print("--- documents[0].page_content ---")
 print(meta_documents[0].page_content)
@@ -169,6 +188,8 @@ content_loader = CSVLoader(
     content_columns=["name", "description"],
 )
 content_documents = content_loader.load()
+logger.info("content_columns 模式加载完成，共 %d 个 Document（正文只含 name/description）",
+             len(content_documents))
 
 print("--- documents[0].page_content ---")
 print(content_documents[0].page_content)
@@ -190,6 +211,7 @@ for doc in lazy_loader.lazy_load():
     count += 1
     if count <= 2:
         print(f"[lazy] 第 {count} 条 -> {doc.metadata}")
+logger.info("lazy_load 流式迭代完成，共产出 %d 个 Document（内存占用恒定）", count)
 print(f"lazy_load 共迭代出 {count} 个 Document（内存占用恒定）")
 
 # --------------------------------------------------------------------------- #
@@ -204,6 +226,7 @@ print("=" * 70)
 
 with open(CSV_PATH, encoding="utf-8") as f:
     raw_rows = list(csv.DictReader(f))
+logger.info("内置 csv.DictReader 读到 %d 条 dict", len(raw_rows))
 
 print(f"内置 csv.DictReader 读到 {len(raw_rows)} 条 dict")
 print(json.dumps(raw_rows[0], indent=2, ensure_ascii=False))

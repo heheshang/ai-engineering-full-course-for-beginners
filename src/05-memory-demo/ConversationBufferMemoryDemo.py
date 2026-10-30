@@ -37,6 +37,18 @@ from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain_deepseek import ChatDeepSeek
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 加载环境变量
 # --------------------------------------------------------------------------- #
@@ -70,6 +82,7 @@ llm = ChatDeepSeek(
     temperature=0,
     max_tokens=1024,
 )
+logger.info("LLM 初始化完成：model=deepseek-chat, temperature=0, max_tokens=1024")
 
 
 # =========================================================================== #
@@ -90,13 +103,22 @@ agent = create_agent(
 
 # 同一个 thread_id = 同一段会话，模型就能记住前面说过的话
 CONFIG = {"configurable": {"thread_id": "mala-thread-1"}}
+logger.info("会话配置就绪：thread_id=%s，checkpointer=InMemorySaver", CONFIG["configurable"]["thread_id"])
 
 
 def ask(text: str) -> None:
-    """发起一轮对话并打印回答。"""
+    """发起一轮对话并打印回答。
+
+    Args:
+        text: 用户本轮输入。
+    """
+    logger.info("用户输入：%s", text)
     result = agent.invoke({"messages": [("user", text)]}, CONFIG)
+    answer = result["messages"][-1].content
     print(f"\n👤 用户: {text}")
-    print(f"🤖 AI  : {result['messages'][-1].content}")
+    print(f"🤖 AI  : {answer}")
+    # 记录本轮的消息累计数，用于观察记忆是如何累积的
+    logger.info("本轮回答完成，当前会话累计消息数=%d", len(result["messages"]))
 
 
 ask("Hi, my name is Mala")
@@ -108,7 +130,9 @@ print("\n" + "=" * 70)
 print("会话状态（等价于旧版 memory.buffer 的内容）")
 print("=" * 70)
 state = agent.get_state(CONFIG)
-for message in state.values["messages"]:
+messages = state.values["messages"]
+logger.info("会话状态共 %d 条消息（缓冲区记忆不做任何裁剪，全部保留）", len(messages))
+for message in messages:
     role = "Human" if message.type == "human" else "AI"
     print(f"[{role}] {message.content}")
 

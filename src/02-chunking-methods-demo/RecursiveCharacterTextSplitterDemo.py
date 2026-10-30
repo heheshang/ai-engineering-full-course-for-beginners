@@ -25,7 +25,18 @@
     - separators：按语义粒度从粗到细排列，例如 ["\\n\\n", "\\n", "。", "！", "？", "，", " "]。
 """
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter  # noqa: E402
+
+from utils.logging_utils import get_logger  # noqa: E402
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
 
 # --------------------------------------------------------------------------- #
 # 输入文档：与演示 1 相同的 Markdown 文档，便于横向对比两种切分器的结果差异
@@ -83,6 +94,21 @@ splitter = RecursiveCharacterTextSplitter(
 
 # split_text 返回 List[str]。若需要 Document，可改用 create_documents([sample_text])。
 chunks = splitter.split_text(sample_text)
+
+# 日志：记录切分结果的规模与长度分布。
+# 与演示 1 最大的不同：这里每个块都 <= chunk_size，不存在超长块。
+lengths = [len(c) for c in chunks]
+logger.info(
+    "切分完成：原文 %d 字符 -> %d 个片段，最短 %d 字符，最长 %d 字符，平均 %.1f 字符",
+    len(sample_text), len(chunks),
+    min(lengths) if lengths else 0, max(lengths) if lengths else 0,
+    (sum(lengths) / len(lengths)) if lengths else 0.0,
+)
+oversized = [i for i, n in enumerate(lengths, start=1) if n > 150]
+if oversized:
+    logger.warning("以下片段长度超过 chunk_size=150（超长块）：%s", oversized)
+else:
+    logger.info("所有片段均未超过 chunk_size=150（递归切分成功）")
 
 for i, chunk in enumerate(chunks, 1):
     print(f"\nChunk {i}:")

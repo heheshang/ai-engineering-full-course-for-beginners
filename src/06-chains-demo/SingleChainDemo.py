@@ -35,6 +35,18 @@ from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 加载环境变量
 # --------------------------------------------------------------------------- #
@@ -59,6 +71,7 @@ llm = init_chat_model(
     api_key=api_key,
     temperature=0,
 )
+logger.info("LLM 初始化完成：provider=deepseek, model=deepseek-chat, temperature=0")
 
 # 也可以继续用具体集成类（完全等价）：
 #
@@ -89,6 +102,7 @@ chat_prompt_template = ChatPromptTemplate.from_messages(
 
 # 模板里的占位符可以从这里查看
 print("模板输入变量：", chat_prompt_template.input_variables)
+logger.info("提示词模板构建完成，输入变量：%s", chat_prompt_template.input_variables)
 
 # --------------------------------------------------------------------------- #
 # 3. 组装链（LCEL）并调用
@@ -100,25 +114,35 @@ print("模板输入变量：", chat_prompt_template.input_variables)
 chain = chat_prompt_template | llm
 
 # invoke 传字典，键名对应模板里的占位符
+logger.info("开始调用单链，输入：product=plumbing fixtures")
 response = chain.invoke({"product": "plumbing fixtures"})
 
 # response 是 AIMessage，正文在 .content 里
+logger.info("单链调用完成，输出长度=%d 字符", len(response.content))
 print("公司名：", response.content)
 
 # --------------------------------------------------------------------------- #
 # 4. 其他常用调用方式
 # --------------------------------------------------------------------------- #
 # 4.1 批量调用：传一组输入
-responses = chain.batch([{"product": "plumbing fixtures"}, {"product": "coffee cups"}])
+logger.info("开始批量调用（2 条输入）")
+batch_inputs = [{"product": "plumbing fixtures"}, {"product": "coffee cups"}]
+responses = chain.batch(batch_inputs)
+logger.info("批量调用完成，共返回 %d 条结果", len(responses))
 for item in responses:
     print("批量 →", item.content)
 
 # 4.2 流式输出
 print("\n流式输出：")
+logger.info("开始流式调用（product=rain boots）")
+stream_parts = []
 for chunk in chain.stream({"product": "rain boots"}):
     # AIMessageChunk，累加 .content 就是完整回答
+    stream_parts.append(chunk.content)
     print(chunk.content, end="", flush=True)
 print()
+logger.info("流式调用完成，共 %d 个片段，拼接后 %d 字符",
+             len(stream_parts), len("".join(stream_parts)))
 
 # 4.3 想要结构化输出（返回 Pydantic 对象而不是字符串）
 #

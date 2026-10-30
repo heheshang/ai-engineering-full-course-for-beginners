@@ -20,7 +20,18 @@
     RecursiveCharacterTextSplitter 二次细分。
 """
 
-from langchain_text_splitters import MarkdownHeaderTextSplitter
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from langchain_text_splitters import MarkdownHeaderTextSplitter  # noqa: E402
+
+from utils.logging_utils import get_logger  # noqa: E402
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
 
 # --------------------------------------------------------------------------- #
 # 输入文档：结构清晰的 Markdown 文档，含 1 级到 3 级标题
@@ -74,6 +85,18 @@ markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_sp
 #   page_content -> 该节的正文（不含标题文字）
 #   metadata     -> {"Header 1": "...", "Header 2": "...", ...}，逐级继承上级标题
 docs = markdown_splitter.split_text(sample_text)
+
+# 日志：记录切分数量与每个块的标题层级路径。
+# 注意：切分数量由文档的标题数量决定，与文本长度无关——
+# 这是标题类切分器与长度类切分器最本质的差别。
+logger.info("按标题切分完成：原文 %d 字符 -> %d 个 Document（数量由标题数决定）",
+            len(sample_text), len(docs))
+for i, doc in enumerate(docs, start=1):
+    # 只记录有值的标题键，构造出「层级路径」方便观察继承关系
+    header_path = " > ".join(
+        f"{k}={v}" for k, v in doc.metadata.items() if k.startswith("Header")
+    )
+    logger.info("  Document[%d] 长度=%d 标题路径=%s", i, len(doc.page_content), header_path or "(无标题)")
 
 # 先整体打印，方便观察 metadata 的层级继承关系。
 print(docs)

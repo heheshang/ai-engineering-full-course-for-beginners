@@ -41,6 +41,18 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Route
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 load_dotenv()
 
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
@@ -244,6 +256,14 @@ async def _proxy_to_deepseek(body: dict[str, Any]) -> dict[str, Any]:
         "Content-Type": "application/json",
     }
 
+    logger.info(
+        "收到转发请求：model=%s, stream=%s, 结构化输出改写=%s, max_tokens=%s",
+        body.get("model"),
+        bool(body.get("stream")),
+        used_structured_tool,
+        upstream_body.get("max_tokens"),
+    )
+
     payload: dict[str, Any] = {}
     async with httpx.AsyncClient(timeout=180.0) as client:
         for attempt in range(2):
@@ -253,6 +273,7 @@ async def _proxy_to_deepseek(body: dict[str, Any]) -> dict[str, Any]:
                 headers=headers,
             )
             if response.status_code >= 400:
+                logger.error("上游 DeepSeek 返回错误，状态码=%d", response.status_code)
                 raise _UpstreamError(
                     response.status_code,
                     response.json() if response.content else {"message": response.text},
@@ -260,18 +281,20 @@ async def _proxy_to_deepseek(body: dict[str, Any]) -> dict[str, Any]:
             payload = response.json()
 
             if not _response_is_truncated(payload):
+                logger.info("上游响应正常，第 %d 次尝试即成功", attempt + 1)
                 break
 
             # 被 max_tokens 截断 -> 提高上限重试一次
             current = upstream_body.get("max_tokens")
             base = current if isinstance(current, int) else 2000
             upstream_body = {**upstream_body, "max_tokens": base * 4}
-            print(
-                f"[proxy] response truncated by max_tokens={base}, "
-                f"retrying with max_tokens={base * 4}",
-                flush=True,
+            logger.warning(
+                "响应被 max_tokens=%d 截断，自动提高上限到 %d 重试",
+                base, base * 4,
             )
     if os.getenv("PROXY_DEBUG"):
+        # 调试模式：逐个检查 tool-call 的 arguments 是否是合法 JSON，
+        # 便于排查「结构化输出解析失败」这类问题
         for choice in payload.get("choices", []):
             message = choice.get("message") or {}
             for tool_call in message.get("tool_calls") or []:
@@ -282,13 +305,13 @@ async def _proxy_to_deepseek(body: dict[str, Any]) -> dict[str, Any]:
                     status = "ok"
                 except Exception as exc:
                     status = f"INVALID ({exc})"
-                print(
-                    f"[proxy-debug] tool={function.get('name')} "
-                    f"len={len(arguments)} finish={choice.get('finish_reason')} -> {status}",
-                    flush=True,
+                logger.debug(
+                    "tool=%s len=%d finish=%s -> %s",
+                    function.get("name"), len(arguments),
+                    choice.get("finish_reason"), status,
                 )
                 if status != "ok":
-                    print(f"[proxy-debug] raw={arguments!r}", flush=True)
+                    logger.debug("原始 arguments=%r", arguments)
     return _restore_response(payload, used_structured_tool)
 
 
@@ -296,16 +319,22 @@ async def chat_completions(request: Request) -> Any:
     """POST /v1/chat/completions"""
     body = await request.json()
     if body.get("stream"):
+        logger.info("收到流式请求，转发至 _stream_to_deepseek")
         return await _stream_to_deepseek(body)
     try:
         payload = await _proxy_to_deepseek(body)
     except _UpstreamError as exc:
+        # 上游返回 4xx/5xx：原样把错误体透传给客户端，同时记录日志
+        logger.error("上游错误已透传给客户端，状态码=%d", exc.status_code)
         return JSONResponse({"error": exc.payload}, status_code=exc.status_code)
     except Exception as exc:  # pragma: no cover - 兜底，避免 500 无信息
+        logger.error("代理内部异常：%s", exc)
+        logger.exception("代理异常详情")
         return JSONResponse(
             {"error": {"message": f"proxy error: {exc}", "type": "proxy_error"}},
             status_code=502,
         )
+    logger.info("请求处理完成，返回状态码 200")
     return JSONResponse(payload)
 
 
@@ -338,11 +367,16 @@ async def _stream_to_deepseek(body: dict[str, Any]) -> Any:
                             "type": "upstream_error",
                         }
                     }
+                    logger.error("流式请求上游返回错误，状态码=%d", response.status_code)
                     yield f"data: {json.dumps(error)}\n\n".encode()
                     yield b"data: [DONE]\n\n"
                     return
+                logger.info("流式响应已开始转发")
+                chunk_count = 0
                 async for chunk in response.aiter_bytes():
+                    chunk_count += 1
                     yield chunk
+                logger.info("流式响应转发完成，共 %d 个数据块", chunk_count)
 
     return StreamingResponse(
         event_generator(),
@@ -358,11 +392,13 @@ async def models(request: Request) -> Any:
         response = await client.get(
             f"{DEEPSEEK_BASE_URL.rstrip('/')}/models", headers=headers
         )
+    logger.info("透传模型列表完成，状态码=%d", response.status_code)
     return JSONResponse(response.json(), status_code=response.status_code)
 
 
 async def health(request: Request) -> Any:
     """GET /health"""
+    logger.info("健康检查：upstream=%s, key_configured=%s", DEEPSEEK_BASE_URL, bool(DEEPSEEK_API_KEY))
     return JSONResponse(
         {
             "status": "ok",
@@ -386,7 +422,10 @@ def main() -> None:
 
     if not DEEPSEEK_API_KEY:
         raise RuntimeError("未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY")
-    print(f"DeepSeek proxy listening on http://{PROXY_HOST}:{PROXY_PORT}/v1")
+    logger.info("DeepSeek 代理启动中……")
+    logger.info("监听地址：http://%s:%d/v1", PROXY_HOST, PROXY_PORT)
+    logger.info("上游地址：%s", DEEPSEEK_BASE_URL)
+    logger.info("结构化输出改写已启用（json_schema -> tool-calling）")
     uvicorn.run(app, host=PROXY_HOST, port=PROXY_PORT, log_level="info")
 
 

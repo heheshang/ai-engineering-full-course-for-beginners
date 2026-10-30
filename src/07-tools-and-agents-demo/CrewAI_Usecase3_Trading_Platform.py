@@ -20,6 +20,18 @@ from crewai_tools import ScrapeWebsiteTool, SerperDevTool
 from dotenv import load_dotenv
 from typing import Any
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 load_dotenv()
 
 # ---------------------------------------------------------------------------
@@ -28,17 +40,23 @@ load_dotenv()
 deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
 if not deepseek_api_key:
     raise RuntimeError("未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY")
+logger.info("环境检查通过：已检测到 DEEPSEEK_API_KEY")
 
 serper_api_key = os.getenv("SERPER_API_KEY")
 if serper_api_key:
     os.environ["SERPER_API_KEY"] = serper_api_key
+    logger.info("已配置 SERPER_API_KEY，网页搜索将使用 Serper")
+else:
+    # 没有配置 Serper Key 时回退到 DuckDuckGo，无需任何 Key 即可运行
+    logger.info("未配置 SERPER_API_KEY，网页搜索将回退到 DuckDuckGo")
 
 # ---------------------------------------------------------------------------
 # 1. 初始化 DeepSeek 模型（经由本地 OpenAI 兼容代理）
 # ---------------------------------------------------------------------------
+PROXY_BASE_URL = os.getenv("DEEPSEEK_PROXY_URL", "http://127.0.0.1:8765/v1")
 llm = LLM(
     model="openai/deepseek-chat",
-    base_url=os.getenv("DEEPSEEK_PROXY_URL", "http://127.0.0.1:8765/v1"),
+    base_url=PROXY_BASE_URL,
     api_key=deepseek_api_key,
     temperature=0.0,
     # 这里必须给足：多智能体协作会产生很长的 tool-call arguments
@@ -46,6 +64,7 @@ llm = LLM(
     # 截断会导致 JSON 解析失败。代理侧也有自动重试兜底。
     max_tokens=8000,
 )
+logger.info("LLM 初始化完成：model=openai/deepseek-chat, base_url=%s, max_tokens=8000", PROXY_BASE_URL)
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +98,7 @@ class DuckDuckGoSearchTool(BaseTool):
         errors: list[str] = []
         for backend in self.backends:
             try:
+                logger.info("尝试搜索后端：%s，query=%r", backend, search_query)
                 results = list(
                     DDGS().text(
                         search_query,
@@ -87,19 +107,27 @@ class DuckDuckGoSearchTool(BaseTool):
                     )
                 )
                 if results:
+                    logger.info("后端 %s 命中 %d 条结果", backend, len(results))
                     return results
                 errors.append(f"{backend}: no results")
+                logger.warning("后端 %s 未返回结果，尝试下一个后端", backend)
             except Exception as exc:  # pragma: no cover - 网络异常兜底
                 errors.append(f"{backend}: {exc}")
+                logger.warning("后端 %s 搜索失败：%s，尝试下一个后端", backend, exc)
+        logger.error("所有搜索后端均失败：%s", "; ".join(errors))
         raise RuntimeError("; ".join(errors))
 
     def _run(self, search_query: str) -> str:
         try:
             results = self._search(search_query)
         except Exception as exc:  # pragma: no cover - 网络异常兜底
+            # 搜索失败不让整个 Crew 崩掉：把错误信息作为工具返回值交给模型，
+            # 模型可以据此调整策略或如实告知无法获取信息
+            logger.error("网页搜索失败：%s", exc)
             return f"Search failed: {exc}"
 
         if not results:
+            logger.warning("网页搜索无结果：query=%r", search_query)
             return f"No results found for '{search_query}'."
 
         lines = []
@@ -108,14 +136,29 @@ class DuckDuckGoSearchTool(BaseTool):
                 f"- {item.get('title', '')}\n  URL: {item.get('href', '')}\n"
                 f"  {item.get('body', '')}"
             )
+        logger.info("网页搜索完成：query=%r, 共 %d 条结果", search_query, len(results))
         return f"Search results for '{search_query}':\n" + "\n".join(lines)
 
 
-search_tool: BaseTool = SerperDevTool() if serper_api_key else DuckDuckGoSearchTool()
+if serper_api_key:
+    search_tool: BaseTool = SerperDevTool()
+    logger.info("网页搜索工具已选用：SerperDevTool")
+else:
+    search_tool = DuckDuckGoSearchTool()
+    logger.info("网页搜索工具已选用：DuckDuckGoSearchTool")
 scrape_tool = ScrapeWebsiteTool()
+logger.info("网页抓取工具已就绪：ScrapeWebsiteTool")
 
 # ~~~~~~~~~~~Creating Agents ~~~~~~~~~~~~~~~
-# Define Data Analyst Agent
+# 定义「数据分析师」Agent
+#
+# 说明：这里的 role / goal / backstory 都是**英文**，
+# 因为 CrewAI 会把它们直接拼进系统提示词，模型的推理质量更高。
+# 如果希望模型用中文回答，可以在 goal / expected_output 里显式写「请用中文回答」，
+# 或者把 role / backstory 也改成中文（效果略降，但更可控）。
+#
+# allow_delegation=True：允许该 Agent 把工作委派给其他 Agent。
+# 在 hierarchical 流程中，Manager 会根据 Agent 的能力描述自动分配任务。
 data_analyst_agent = Agent(
     role="Data Analyst",
     goal="Monitor and analyze market data in real-time "
@@ -131,7 +174,10 @@ data_analyst_agent = Agent(
     llm=llm,
 )
 
-# Define Trading Strategy Developer Agent
+# 定义「交易策略开发」Agent
+#
+# 职责边界：接收数据分析师的洞察 -> 设计并测试多种交易策略。
+# 四个 Agent 各自负责一个环节，形成「分析 -> 策略 -> 执行 -> 风控」的流水线。
 trading_strategy_agent = Agent(
     role="Trading Strategy Developer",
     goal="Develop and test various trading strategies based "
@@ -147,7 +193,9 @@ trading_strategy_agent = Agent(
     llm=llm,
 )
 
-# Define Trade Advisor Agent
+# 定义「交易执行顾问」Agent
+#
+# 职责边界：基于已批准的策略，分析时机、价格、执行细节等落地问题。
 execution_agent = Agent(
     role="Trade Advisor",
     goal="Suggest optimal trade execution strategies "
@@ -163,7 +211,10 @@ execution_agent = Agent(
     llm=llm,
 )
 
-# Define Risk Advisor Agent
+# 定义「风险顾问」Agent
+#
+# 职责边界：审查前面所有环节产出的方案，指出风险敞口并给出对冲/规避建议。
+# 放在最后一位，因为风控结论需要基于前序所有输出。
 risk_management_agent = Agent(
     role="Risk Advisor",
     goal="Evaluate and provide insights on the risks "
@@ -181,6 +232,13 @@ risk_management_agent = Agent(
 
 # ~~~~~~~~~~~~~~~ Creating Tasks ~~~~~~~~~~~~~~~~~~~~~~
 # Task for Data Analyst Agent: Analyze Market Data
+#
+# Task 的两个核心字段：
+#   - description：做什么（会被填入实际输入变量后发给 Agent）；
+#   - expected_output：要产出什么（决定 Manager 如何验收这个 Task 的结果）。
+#
+# 注意 description 里的 {stock_selection} 等占位符，
+# 会在 kickoff(inputs=...) 时被真实值替换。
 data_analysis_task = Task(
     description=(
         "Continuously monitor and analyze market data for "
@@ -196,6 +254,10 @@ data_analysis_task = Task(
 )
 
 # Task for Trading Strategy Agent: Develop Trading Strategies
+#
+# 这个 Task 同时消费了前面 Task 的产出（"insights from the Data Analyst"）、
+# 以及用户直接给出的约束（risk_tolerance、trading_strategy_preference），
+# 体现了 hierarchical 流程中「Agent 之间可以传递上下文」的特点。
 strategy_development_task = Task(
     description=(
         "Develop and refine trading strategies based on "
@@ -241,6 +303,16 @@ risk_assessment_task = Task(
 
 # ~~~~~~~~~~~~~~ Creating the Crew~~~~~~~~~~~~~~~~~~
 # Define the crew with agents and tasks
+#
+# process=Process.hierarchical：层级式流程
+#   - 由 manager_llm（这里复用同一个 DeepSeek）担任 Manager，负责：
+#     1) 把整体目标拆解成子任务；
+#     2) 判断每个子任务该交给哪个 Agent；
+#     3) 汇总各 Agent 的产出，形成最终报告。
+#   - 对比 Process.sequential：严格按 tasks 列表顺序串行执行，不做动态拆解。
+#
+# 层级式流程的代价是 token 消耗明显更高（Manager 要反复思考委派），
+# 所以 max_tokens 必须给足，否则 delegate_work_to_coworker 的参数会被截断。
 financial_trading_crew = Crew(
     agents=[
         data_analyst_agent,
@@ -267,14 +339,25 @@ financial_trading_inputs = {
     "trading_strategy_preference": "Day Trading",
     "news_impact_consideration": True,
 }
+logger.info("Crew 输入参数：%s", financial_trading_inputs)
 
 # ~~~~~~~~~~~~~~ Running the Crew ~~~~~~~~~~~~~~~~~~
-result = financial_trading_crew.kickoff(inputs=financial_trading_inputs)
+# hierarchical 流程：Manager Agent 负责拆解与委派，四个专业 Agent 各执行一个 Task。
+logger.info("开始执行 hierarchical 流程（Crew 会自动委派任务给合适的 Agent）")
+try:
+    result = financial_trading_crew.kickoff(inputs=financial_trading_inputs)
+except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+    # 常见失败原因：本地代理未启动、模型超时、委派过程超过 max_tokens 限制
+    logger.error("Crew 执行失败：%s", exc)
+    logger.exception("Crew 执行异常详情")
+    raise
 
+logger.info("Crew 执行完成，最终输出长度=%d 字符", len(result.raw))
 print("Final result ===> ", result)
 
 file_name = r"output.md"  # Name of the Markdown file
 with open(file_name, "w", encoding="utf-8") as file:
     file.write(result.raw)
+logger.info("Markdown 结果已写入 %s（%d 字节）", file_name, os.path.getsize(file_name))
 
 print(f"Markdown content has been saved to {file_name}")

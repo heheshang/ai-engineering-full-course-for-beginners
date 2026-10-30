@@ -29,6 +29,11 @@
 
 import json
 import os
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
@@ -40,6 +45,11 @@ from langchain_core.messages import (
 from langchain_core.prompts import PromptTemplate
 from langchain_deepseek import ChatDeepSeek
 
+from utils.logging_utils import get_logger, log_exception
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
 # 加载 .env 中的 API Key，避免硬编码密钥。
 load_dotenv()
 
@@ -50,6 +60,7 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 #   temperature：0.5 控制随机性，0 最确定，1 以上越发散；
 #   api_key：从环境变量显式传入。
 llm = ChatDeepSeek(model="deepseek-flash", temperature=0.5, api_key=api_key)
+logger.info("LLM 初始化完成：model=deepseek-flash, temperature=0.5")
 
 # --------------------------------------------------------------------------- #
 # 1. 定义提示词模板
@@ -86,14 +97,30 @@ system_prompt = basic_prompt.format(customer_message=customer_message)
 # 这里没有传 tools，所以它就是一个"单轮问答"的 Agent：
 # 输入消息 -> 模型 -> 直接返回 AIMessage。
 agent = create_agent(model=llm, system_prompt=system_prompt)
+logger.info("Agent 创建完成（未注册工具，等价于单轮问答）")
 
 
 # --------------------------------------------------------------------------- #
 # 4. 调用
 # --------------------------------------------------------------------------- #
-result = agent.invoke(
-    {"messages": [HumanMessage(content="Please respond to my message.")]}
-)
+logger.info("开始调用 Agent")
+try:
+    result = agent.invoke(
+        {"messages": [HumanMessage(content="Please respond to my message.")]}
+    )
+except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+    log_exception(logger, "Agent 调用失败")
+    raise
+
+# 日志：记录本次调用的消息数量与 token 用量
+last_message = result["messages"][-1]
+logger.info("Agent 调用完成，共返回 %d 条消息", len(result["messages"]))
+usage = getattr(last_message, "usage_metadata", None)
+if usage:
+    logger.info(
+        "token 用量：输入=%s，输出=%s，合计=%s",
+        usage.get("input_tokens"), usage.get("output_tokens"), usage.get("total_tokens"),
+    )
 # --------------------------------------------------------------------------- #
 # 4. 打印完整信息
 # --------------------------------------------------------------------------- #

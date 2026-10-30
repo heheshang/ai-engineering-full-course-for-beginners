@@ -39,6 +39,18 @@ from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 加载环境变量
 # --------------------------------------------------------------------------- #
@@ -105,18 +117,36 @@ def calculator(expression: str) -> str:
     if expr.lower().startswith("answer:"):
         expr = expr[len("answer:") :].strip()
 
+    logger.info("计算器工具被调用：expression=%r", expr)
+
     if not _HAS_NUMEXPR:
         # 没装 numexpr 时退化为内置 eval（仅演示用，生产环境务必装 numexpr）
-        return str(eval(expr, {"__builtins__": {}}, {}))
+        logger.warning("未安装 numexpr，回退到内置 eval（安全性较低）")
+        try:
+            result = str(eval(expr, {"__builtins__": {}}, {}))
+            logger.info("计算结果：%s", result)
+            return result
+        except Exception as exc:
+            logger.error("计算失败：%s", exc)
+            return f"Calculation error: {exc}"
+
     # global_dict={} 限制访问全局变量；
     # local_dict 注入常用数学常量，让模型可以写 pi / e。
-    return str(
-        numexpr.evaluate(
-            expr,
-            global_dict={},
-            local_dict={"pi": math.pi, "e": math.e},
+    try:
+        result = str(
+            numexpr.evaluate(
+                expr,
+                global_dict={},
+                local_dict={"pi": math.pi, "e": math.e},
+            )
         )
-    )
+    except Exception as exc:
+        # numexpr 只支持数值运算，遇到变量赋值/循环/函数定义会报解析错误。
+        # 把错误转成可读返回值，模型能读到后自行纠正格式。
+        logger.error("numexpr 求值失败：expression=%r, error=%s", expr, exc)
+        return f"Calculation error: {exc}"
+    logger.info("计算结果：%s", result)
+    return result
 
 
 # --------------------------------------------------------------------------- #
@@ -145,11 +175,14 @@ math_agent = create_agent(
 MATH_QUESTION = "What is 100 times 4?"
 
 # Agent 的返回值是状态字典，最后一条消息（messages[-1]）就是最终答案。
+logger.info("开始调用数学 Agent：%s", MATH_QUESTION)
 agent_result = math_agent.invoke({"messages": [("user", MATH_QUESTION)]})
+final_answer = agent_result["messages"][-1].content
+logger.info("Agent 回答完成：%s", final_answer)
 
 print(f"\033[1mQuestion: {MATH_QUESTION}")
 print("-" * 50)
-print(f"\033[0mAnswer: {agent_result['messages'][-1].content}")
+print(f"\033[0mAnswer: {final_answer}")
 
 # --------------------------------------------------------------------------- #
 # 5. 流式输出：实时看到「思考 → 调工具 → 得答案」的全过程
@@ -165,13 +198,16 @@ for chunk in math_agent.stream(
 ):
     last = chunk["messages"][-1]
     print(f"  · {last.type}: {last.content or getattr(last, 'tool_calls', '')}")
+    logger.debug("流式节点：type=%s", last.type)
 
 # --------------------------------------------------------------------------- #
 # 6. 对照组：纯靠模型心算（不调用任何工具）
 # --------------------------------------------------------------------------- #
 # 这一步用来对比「有没有工具」的差别：
 # 纯靠模型心算，大数幂运算很容易出错或答非所问。
+logger.info("开始对照组：不使用任何工具，纯模型作答")
 plain = llm.invoke([HumanMessage(content=MATH_QUESTION)])
+logger.info("对照组回答完成：%s", plain.content)
 print("\n\033[1m[无工具，纯模型作答]")
 print("-" * 50)
 print("\033[0m" + plain.content)

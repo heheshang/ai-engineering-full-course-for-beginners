@@ -17,7 +17,18 @@
     TokenTextSplitter              -> 依据 token 数量切，贴合大模型上下文窗口
 """
 
-from langchain_text_splitters import CharacterTextSplitter
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from langchain_text_splitters import CharacterTextSplitter  # noqa: E402
+
+from utils.logging_utils import get_logger  # noqa: E402
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
 
 # --------------------------------------------------------------------------- #
 # 输入文档：一份 Markdown 格式的机器学习入门文档
@@ -70,6 +81,19 @@ splitter = CharacterTextSplitter(
 
 # split_text 接收字符串，返回字符串列表（List[str]）。
 chunks = splitter.split_text(sample_text)
+
+# 日志：记录切分结果的规模与长度分布，便于对比不同切分器的差异
+lengths = [len(c) for c in chunks]
+logger.info(
+    "切分完成：原文 %d 字符 -> %d 个片段，最短 %d 字符，最长 %d 字符，平均 %.1f 字符",
+    len(sample_text), len(chunks),
+    min(lengths) if lengths else 0, max(lengths) if lengths else 0,
+    (sum(lengths) / len(lengths)) if lengths else 0.0,
+)
+# 超过 chunk_size 的片段说明无法在分隔符处断开，属于「超长块」，需要重点关注
+oversized = [i for i, n in enumerate(lengths, start=1) if n > 100]
+if oversized:
+    logger.warning("以下片段长度超过 chunk_size=100（超长块）：%s", oversized)
 
 # 打印原始列表与元素类型，方便直观确认返回结构。
 print(chunks)

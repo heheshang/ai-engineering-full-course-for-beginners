@@ -41,6 +41,18 @@ from pathlib import Path
 
 from langchain_community.document_loaders import BSHTMLLoader
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 准备工作
 # --------------------------------------------------------------------------- #
@@ -63,16 +75,20 @@ print("=" * 70)
 
 loader = BSHTMLLoader(file_path=str(HTML_PATH), get_text_separator="\n")
 docs = loader.load()
+logger.info("BSHTMLLoader 加载完成，共 %d 个 Document（整页 1 个）", len(docs))
 
 print(f"共加载 {len(docs)} 个 Document")
 print("metadata：")
 print(json.dumps(docs[0].metadata, indent=2, ensure_ascii=False))
+logger.info("metadata=%s", docs[0].metadata)
 
 print("\n--- page_content 前 500 字符 ---")
 print(docs[0].page_content[:500])
 
 # 对比：不传 separator 会怎样（文本粘连）
 plain_docs = BSHTMLLoader(file_path=str(HTML_PATH)).load()
+logger.info("对比：默认 separator='' 的正文长度=%d 字符（文本直接粘连，可读性差）",
+             len(plain_docs[0].page_content))
 print("\n--- 对比：默认 get_text_separator='' 的效果（前 200 字符）---")
 print(plain_docs[0].page_content[:200])
 
@@ -95,10 +111,12 @@ from langchain_core.documents import Document  # noqa: E402
 
 html_text = HTML_PATH.read_text(encoding="utf-8")
 soup = BeautifulSoup(html_text, "html.parser")
+logger.info("HTML 解析完成，原始长度=%d 字符", len(html_text))
 
 # 剥掉对 RAG 没价值的噪音标签
 for tag in soup(["style", "script", "head", "nav", "footer"]):
     tag.decompose()
+logger.info("已剥离 style/script/head/nav/footer 等噪音标签")
 
 # 逐个块级标签提取文本
 BLOCK_TAGS = ["h1", "h2", "h3", "p", "li", "td", "th", "blockquote"]
@@ -119,9 +137,11 @@ for tag in soup.find_all(BLOCK_TAGS):
     )
 
 print(f"按语义标签切出 {len(blocks)} 个 Document")
+logger.info("按语义标签切分完成，共 %d 个 Document", len(blocks))
 print("\n--- 前 12 个块的 tag / 内容预览 ---")
 for i, doc in enumerate(blocks[:12]):
     print(f"[{i}] <{doc.metadata['tag']}> {doc.page_content[:80]}")
+    logger.debug("  块[%d] 标签=%s 长度=%d", i, doc.metadata["tag"], len(doc.page_content))
 
 # --------------------------------------------------------------------------- #
 # 3. 方式三：HTML 表格 -> DataFrame（而不是当纯文本切）
@@ -135,6 +155,7 @@ print("=" * 70)
 import pandas as pd  # noqa: E402
 
 tables = pd.read_html(HTML_PATH)
+logger.info("从 HTML 中解析出 %d 个表格", len(tables))
 print(f"从 HTML 中解析出 {len(tables)} 个表格")
 df = tables[0]
 print(f"表格形状：{df.shape}")
@@ -155,6 +176,10 @@ print("=" * 70)
 
 official_chars = len(docs[0].page_content)
 custom_chars = sum(len(d.page_content) for d in blocks)
+logger.info(
+    "三种方式对比：官方=%d 文档/%d 字符，自定义=%d 文档/%d 字符，Markdown 表格=%d 字符",
+    len(docs), official_chars, len(blocks), custom_chars, len(markdown_table),
+)
 
 print(f"{'方式':<28}{'Document 数':<14}{'总字符数':<12}")
 print("-" * 54)

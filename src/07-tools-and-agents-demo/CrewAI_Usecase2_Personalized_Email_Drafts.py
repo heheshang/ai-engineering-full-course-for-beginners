@@ -35,6 +35,18 @@ from crewai.tools import BaseTool
 from crewai_tools import DirectoryReadTool, FileReadTool, SerperDevTool
 from dotenv import load_dotenv
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 load_dotenv()
 
 # ---------------------------------------------------------------------------
@@ -42,9 +54,11 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 if not os.getenv("DEEPSEEK_API_KEY"):
     raise RuntimeError("未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY")
+logger.info("环境检查通过：已检测到 DEEPSEEK_API_KEY")
 
 INSTRUCTIONS_DIR = Path("instructions")
 INSTRUCTIONS_DIR.mkdir(exist_ok=True)
+logger.info("内部资料目录就绪：%s", INSTRUCTIONS_DIR.resolve())
 
 # 内部资料：让 Agent 有可读取的「ABC 解决方案 / ICP」上下文
 INSTRUCTIONS_FILE = INSTRUCTIONS_DIR / "abc_solutions.md"
@@ -70,6 +84,10 @@ if not INSTRUCTIONS_FILE.exists():
 """,
         encoding="utf-8",
     )
+    logger.info("已生成示例内部资料：%s", INSTRUCTIONS_FILE)
+else:
+    # 已存在则复用，避免每次运行都覆盖用户自己补充的内容
+    logger.info("内部资料已存在，跳过生成：%s", INSTRUCTIONS_FILE)
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +114,7 @@ llm = LLM(
     # 否则会被截断导致 JSON 解析失败（代理侧也有自动重试兜底）。
     max_tokens=8000,
 )
+logger.info("LLM 初始化完成：model=openai/deepseek-chat, base_url=%s, max_tokens=8000", PROXY_BASE_URL)
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +148,7 @@ class DuckDuckGoSearchTool(BaseTool):
         errors: list[str] = []
         for backend in self.backends:
             try:
+                logger.info("尝试搜索后端：%s，query=%r", backend, search_query)
                 results = list(
                     DDGS().text(
                         search_query,
@@ -137,19 +157,26 @@ class DuckDuckGoSearchTool(BaseTool):
                     )
                 )
                 if results:
+                    logger.info("后端 %s 命中 %d 条结果", backend, len(results))
                     return results
                 errors.append(f"{backend}: no results")
+                logger.warning("后端 %s 未返回结果，尝试下一个后端", backend)
             except Exception as exc:  # pragma: no cover - 网络异常兜底
                 errors.append(f"{backend}: {exc}")
+                logger.warning("后端 %s 搜索失败：%s，尝试下一个后端", backend, exc)
+        logger.error("所有搜索后端均失败：%s", "; ".join(errors))
         raise RuntimeError("; ".join(errors))
 
     def _run(self, search_query: str) -> str:
         try:
             results = self._search(search_query)
         except Exception as exc:  # pragma: no cover - 网络异常兜底
+            # 搜索失败不让整个 Crew 崩掉：把错误信息作为工具返回值交给模型
+            logger.error("网页搜索失败：%s", exc)
             return f"Search failed: {exc}"
 
         if not results:
+            logger.warning("网页搜索无结果：query=%r", search_query)
             return f"No results found for '{search_query}'."
 
         lines = []
@@ -158,6 +185,7 @@ class DuckDuckGoSearchTool(BaseTool):
                 f"- {item.get('title', '')}\n  URL: {item.get('href', '')}\n"
                 f"  {item.get('body', '')}"
             )
+        logger.info("网页搜索完成：query=%r, 共 %d 条结果", search_query, len(results))
         return f"Search results for '{search_query}':\n" + "\n".join(lines)
 
 
@@ -165,8 +193,10 @@ serper_api_key = os.getenv("SERPER_API_KEY")
 if serper_api_key:
     os.environ["SERPER_API_KEY"] = serper_api_key
     search_tool: BaseTool = SerperDevTool()
+    logger.info("网页搜索工具已选用：SerperDevTool")
 else:
     search_tool = DuckDuckGoSearchTool()
+    logger.info("未配置 SERPER_API_KEY，网页搜索工具选用 DuckDuckGoSearchTool")
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +215,10 @@ class SentimentAnalysisTool(BaseTool):
     )
 
     def _run(self, text: str) -> str:
-        # Your custom code tool goes here
+        # 自定义工具的核心：把「真实业务逻辑」写在这里，返回一个字符串给模型。
+        # 这里为了演示只返回固定值 "positive"；
+        # 真实项目可以接入情感分析模型 / 第三方 API / 规则引擎。
+        # 注意：工具的返回值会原样进入模型的上下文，所以应当简洁、信息量高。
         return "positive"
 
 
@@ -195,6 +228,16 @@ sentiment_analysis_tool = SentimentAnalysisTool()
 # ---------------------------------------------------------------------------
 # 4. Agents
 # ---------------------------------------------------------------------------
+# 两个 Agent 的分工：
+#   - sales_rep_agent（销售代表）：做「研究」——挖掘线索、编画像；
+#   - lead_sales_rep_agent（线索销售）：做「创作」——基于画像写个性化外联邮件。
+#
+# allow_delegation=False：不允许互相委派。
+# 两者是上下游关系而非平级协作，禁掉委派可以避免模型「自己给自己派活」，
+# 让流程更确定、token 消耗也更可控。
+#
+# 说明：role / goal / backstory 保持英文，因为它们会原样拼进系统提示词，
+# 英文人设对模型的指令遵循度更好。
 sales_rep_agent = Agent(
     role="Sales Representative",
     goal="Identify high-value leads that match our ideal customer profile",
@@ -214,6 +257,7 @@ sales_rep_agent = Agent(
     llm=llm,
 )
 
+# 线索销售 Agent：把前面产出的画像转成「可直接发出去」的邮件文案
 lead_sales_rep_agent = Agent(
     role="Lead Sales Representative",
     goal="Nurture leads with personalized, compelling communications",
@@ -237,6 +281,9 @@ lead_sales_rep_agent = Agent(
 # ---------------------------------------------------------------------------
 # 5. Tasks
 # ---------------------------------------------------------------------------
+# Task 1：线索画像
+# 说明：description 里的 {lead_name} / {industry} 等占位符
+# 会在 crew.kickoff(inputs=...) 时被真实值替换。
 lead_profiling_task = Task(
     description=(
         "Conduct an in-depth analysis of {lead_name}, "
@@ -325,7 +372,16 @@ inputs = {
     "position": "CEO",
     "milestone": "product launch",
 }
+logger.info("Crew 输入参数：%s", inputs)
+logger.info("开始执行 Crew：agents=2, tasks=2, memory=ONNX MiniLM")
 
-result = crew.kickoff(inputs=inputs)
+try:
+    result = crew.kickoff(inputs=inputs)
+except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+    # 常见失败原因：本地代理未启动（连接被拒绝）、Memory 嵌入模型下载失败
+    logger.error("Crew 执行失败：%s", exc)
+    logger.exception("Crew 执行异常详情")
+    raise
 
+logger.info("Crew 执行完成，最终输出长度=%d 字符", len(result.raw))
 print(result.raw)

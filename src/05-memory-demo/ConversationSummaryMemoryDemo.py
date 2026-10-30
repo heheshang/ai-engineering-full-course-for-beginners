@@ -59,6 +59,18 @@ import os
 from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 加载环境变量
 # --------------------------------------------------------------------------- #
@@ -95,6 +107,7 @@ llm = ChatDeepSeek(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
     temperature=0,
 )
+logger.info("LLM 初始化完成：model=deepseek-chat, temperature=0")
 
 # =========================================================================== #
 # 路线 A（推荐）：create_agent + SummarizationMiddleware
@@ -119,6 +132,10 @@ summarization = SummarizationMiddleware(
     trigger=("tokens", MAX_TOKEN_LIMIT),
     keep=("messages", KEEP_MESSAGES),
 )
+logger.info(
+    "摘要中间件配置完成：触发条件=token 数 > %d，总结后保留最近 %d 条原文",
+    MAX_TOKEN_LIMIT, KEEP_MESSAGES,
+)
 
 agent = create_agent(
     model=llm,
@@ -131,13 +148,21 @@ agent = create_agent(
 
 # 同一个 thread_id = 同一段会话
 CONFIG = {"configurable": {"thread_id": "mala-summary-1"}}
+logger.info("会话配置就绪：thread_id=%s", CONFIG["configurable"]["thread_id"])
 
 
 def ask(text: str) -> None:
-    """发起一轮对话并打印回答。"""
+    """发起一轮对话并打印回答。
+
+    Args:
+        text: 用户本轮输入。
+    """
+    logger.info("用户输入：%s", text)
     result = agent.invoke({"messages": [("user", text)]}, CONFIG)
+    answer = result["messages"][-1].content
     print(f"\n👤 用户: {text}")
-    print(f"🤖 AI  : {result['messages'][-1].content}")
+    print(f"🤖 AI  : {answer}")
+    logger.info("本轮回答完成，当前状态消息数=%d", len(result["messages"]))
 
 
 print("=" * 70)
@@ -155,9 +180,14 @@ print("\n" + "-" * 70)
 print("会话状态（历史已被压缩为摘要 + 最近几条原文）")
 print("-" * 70)
 state = agent.get_state(CONFIG)
-for message in state.values["messages"]:
+state_messages = state.values["messages"]
+logger.info("会话状态共 %d 条消息（历史已被压缩，不再是原始条数）", len(state_messages))
+for message in state_messages:
     role = message.type
     print(f"[{role}] {str(message.content)[:200]}")
+    logger.debug("消息类型=%s, 长度=%d", role, len(str(message.content)))
+logger.info("摘要记忆的关键点：旧消息被压缩进摘要而非丢弃，因此语义仍然保留，"
+            "但细节会丢失；最后一句提问中的名字依然能被模型想起来")
 
 # --------------------------------------------------------------------------- #
 # 进阶：摘要 + 窗口 组合

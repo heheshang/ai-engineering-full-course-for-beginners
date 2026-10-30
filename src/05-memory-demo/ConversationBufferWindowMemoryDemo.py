@@ -43,6 +43,18 @@ from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import BaseMessage, RemoveMessage, trim_messages
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 加载环境变量
 # --------------------------------------------------------------------------- #
@@ -79,6 +91,7 @@ llm = ChatDeepSeek(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
     temperature=0,
 )
+logger.info("LLM 初始化完成：model=deepseek-chat, temperature=0")
 
 # =========================================================================== #
 # 路线 A（推荐）：create_agent + checkpointer + 窗口裁剪中间件
@@ -110,10 +123,16 @@ def trim_message_window(state: dict[str, Any], runtime: Any) -> dict[str, Any] |
     messages: list[BaseMessage] = state["messages"]
     keep = K * 2
     if len(messages) <= keep:
+        logger.debug("消息数 %d 未超过窗口上限 %d，无需裁剪", len(messages), keep)
         return None
 
     # 只保留最后 keep 条，更早的用 RemoveMessage 删除
-    return {"messages": [RemoveMessage(id=m.id) for m in messages[:-keep]]}
+    removed = messages[:-keep]
+    logger.info(
+        "触发窗口裁剪：当前 %d 条消息超过上限 %d，删除最早的 %d 条",
+        len(messages), keep, len(removed),
+    )
+    return {"messages": [RemoveMessage(id=m.id) for m in removed]}
 
 
 agent = create_agent(
@@ -126,13 +145,22 @@ agent = create_agent(
 
 # 同一个 thread_id = 同一段会话
 CONFIG = {"configurable": {"thread_id": "mala-window-1"}}
+logger.info("会话配置就绪：thread_id=%s，窗口大小 K=%d 轮（最多 %d 条消息）",
+             CONFIG["configurable"]["thread_id"], K, K * 2)
 
 
 def ask(text: str) -> None:
-    """发起一轮对话并打印回答。"""
+    """发起一轮对话并打印回答。
+
+    Args:
+        text: 用户本轮输入。
+    """
+    logger.info("用户输入：%s", text)
     result = agent.invoke({"messages": [("user", text)]}, CONFIG)
+    answer = result["messages"][-1].content
     print(f"\n👤 用户: {text}")
-    print(f"🤖 AI  : {result['messages'][-1].content}")
+    print(f"🤖 AI  : {answer}")
+    logger.info("本轮回答完成，返回消息数=%d（裁剪后）", len(result["messages"]))
 
 
 print("=" * 70)
@@ -148,9 +176,15 @@ print("\n" + "-" * 70)
 print(f"当前窗口内的消息（最多 {K} 轮 / {K * 2} 条）")
 print("-" * 70)
 state = agent.get_state(CONFIG)
-for message in state.values["messages"]:
+window_messages = state.values["messages"]
+logger.info("窗口内当前保留 %d 条消息（上限 %d 条）", len(window_messages), K * 2)
+if len(window_messages) > K * 2:
+    logger.warning("消息数超过窗口上限，裁剪中间件可能未生效")
+for message in window_messages:
     role = "Human" if message.type == "human" else "AI"
     print(f"[{role}] {message.content}")
+logger.info("注意：最后的提问「what is my name?」发生在裁剪之后，"
+            "名字所在的第 1 轮已被移出窗口，模型可能已经「忘记」")
 
 # --------------------------------------------------------------------------- #
 # 进阶：按 token 数而不是轮数裁剪

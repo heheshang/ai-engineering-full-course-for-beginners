@@ -10,6 +10,18 @@ from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_deepseek import ChatDeepSeek
 from langchain_openai import OpenAIEmbeddings
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # 加载环境变量
 load_dotenv()
 os.environ["DEEPSEEK_API_KEY"] = os.getenv("DEEPSEEK_API_KEY")
@@ -17,7 +29,10 @@ os.environ["APIFY_API_TOKEN"] = os.getenv("APIFY_API_TOKEN")
 
 # 1. 爬取网页
 apify = ApifyWrapper()
+logger.info("Apify 客户端初始化完成，开始爬取网站内容")
 print("开始爬取网站内容...")
+# Apify 的 actor 是「云端爬虫」：需要 APIFY_API_TOKEN，
+# 免费额度有限，爬取失败通常是额度用尽或 token 无效。
 loader = apify.call_actor(
     actor_id="apify/website-content-crawler",
     run_input={
@@ -25,6 +40,8 @@ loader = apify.call_actor(
             {"url": "https://en.wikipedia.org/wiki/Generative_artificial_intelligence"}
         ]
     },
+    # dataset_mapping_function：把 Apify 的原始 item 转成 LangChain 的 Document。
+    # 这里保留 url 作为 metadata["source"]，后续回答时可以给出引用链接。
     dataset_mapping_function=lambda item: Document(
         page_content=item["text"] or "", metadata={"source": item["url"]}
     ),
@@ -32,6 +49,7 @@ loader = apify.call_actor(
 
 # 2. 构建向量存储与检索器
 documents = loader.load()
+logger.info("网页爬取完成，共加载 %d 个文档", len(documents))
 print(f"已加载 {len(documents)} 个文档，正在计算嵌入...")
 
 
@@ -72,9 +90,17 @@ embeddings = OpenAIEmbeddings(
     api_key="ollama",
     check_embedding_ctx_length=False,
 )
+logger.info(
+    "Embedding 模型就绪：model=%s, base_url=%s（本地 Ollama，无需联网、无费用）",
+    ollama_embedding_model(), ollama_base_url(),
+)
 
+# InMemoryVectorStore：内存向量库，进程结束即释放，适合演示与小数据量。
+# 生产环境应换成 Chroma / Milvus / Qdrant 等持久化向量库。
 vectorstore = InMemoryVectorStore.from_documents(documents, embeddings)
+logger.info("向量库构建完成，已为 %d 个文档计算嵌入", len(documents))
 retriever = vectorstore.as_retriever()
+logger.info("检索器创建完成，默认召回条数 k=%s", getattr(retriever, "search_kwargs", {}).get("k", "默认"))
 
 # 3. 用 LCEL 手动组合 RAG 链（不用 langchain-classic）
 llm = ChatDeepSeek(
@@ -105,12 +131,25 @@ rag_chain = (
 
 # 4. 查询
 query = "What is Generative artificial intelligence?"
-answer = rag_chain.invoke(query)
+logger.info("开始 RAG 查询：%r", query)
+try:
+    answer = rag_chain.invoke(query)
+except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+    # 常见失败原因：Ollama 未启动、APIFY_API_TOKEN 无效、DeepSeek Key 缺失
+    logger.error("RAG 查询失败：%s", exc)
+    logger.exception("RAG 查询异常详情")
+    raise
 
+logger.info("查询完成，答案长度=%d 字符", len(answer))
 print("\n--- 答案 ---")
 print(answer)
 
 # 如需来源，单独调用 retriever
 print("\n--- 来源 ---")
+sources = []
 for doc in retriever.invoke(query):
-    print(doc.metadata.get("source", "未知来源"))
+    source = doc.metadata.get("source", "未知来源")
+    sources.append(source)
+    print(source)
+logger.info("共检索到 %d 条来源文档", len(sources))
+logger.info("Apify 爬虫 + 本地 Ollama Embedding 的 RAG 演示结束")

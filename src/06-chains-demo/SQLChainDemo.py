@@ -40,6 +40,18 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_community.utilities import SQLDatabase
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 加载环境变量
 # --------------------------------------------------------------------------- #
@@ -229,22 +241,27 @@ chain = (
 # 5. 调用路线 A
 # --------------------------------------------------------------------------- #
 question = "How many employees are there?"
+logger.info("开始执行路线 A（LCEL 固定链），问题：%s", question)
 
 # 单独跑一下 sql_chain，看看模型到底生成了什么 SQL（调试时非常有用）
 generated_sql = sql_chain.invoke({"question": question})
+logger.info("模型生成的 SQL：%s", generated_sql)
 print("=" * 70)
 print("1) 模型生成的 SQL")
 print("=" * 70)
 print(generated_sql)
 
 # 再看执行结果
+sql_result = db.run_no_throw(generated_sql)
+logger.info("SQL 执行结果：%s", sql_result)
 print("\n" + "=" * 70)
 print("2) SQL 执行结果")
 print("=" * 70)
-print(db.run_no_throw(generated_sql))
+print(sql_result)
 
 # 最后跑完整链，拿最终答案
 answer = chain.invoke({"question": question})
+logger.info("路线 A 完成，最终答案：%s", answer)
 print("\n" + "=" * 70)
 print("3) 最终答案（路线 A：LCEL 固定链）")
 print("=" * 70)
@@ -295,9 +312,12 @@ sql_agent = create_agent(
         "Finally, answer in natural language with the concrete numbers."
     ),
 )
+logger.info("SQL Agent 创建完成，已注册 %d 个工具：%s", len(sql_tools), [t.name for t in sql_tools])
 
 # 调用 Agent：返回的是状态字典 {"messages": [...]}
+logger.info("开始执行路线 B（Agent + SQL 工具）")
 agent_result = sql_agent.invoke({"messages": [("user", question)]})
+logger.info("路线 B 完成，共产生 %d 条消息", len(agent_result["messages"]))
 
 print("\n" + "=" * 70)
 print("4) Agent 路线：完整对话过程")
@@ -307,15 +327,19 @@ for message in agent_result["messages"]:
     tool_calls = getattr(message, "tool_calls", None)
     if tool_calls:
         for call in tool_calls:
+            logger.info("Agent 调用工具：%s(%s)", call["name"], call["args"])
             print(f"  → 调用工具 {call['name']}({call['args']})")
     else:
+        logger.debug("Agent 消息：type=%s", message.type)
         print(f"  · {message.type}: {message.content}")
 
 print("\n" + "=" * 70)
 print("5) 最终答案（路线 B：Agent + 工具）")
 print("=" * 70)
 # messages[-1] 就是模型的最终回答
-print(agent_result["messages"][-1].content)
+agent_answer = agent_result["messages"][-1].content
+logger.info("路线 B 最终答案：%s", agent_answer)
+print(agent_answer)
 
 # --------------------------------------------------------------------------- #
 # 7. 常见坑 / 进阶方向

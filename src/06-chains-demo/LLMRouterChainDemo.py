@@ -42,6 +42,18 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from pydantic import BaseModel, Field
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 加载环境变量
 # --------------------------------------------------------------------------- #
@@ -66,6 +78,7 @@ os.environ["DEEPSEEK_API_KEY"] = api_key
 #   - provider 决定用哪家的客户端（deepseek / openai / anthropic ...）
 #   - model    是具体模型名
 llm = init_chat_model(model="deepseek-chat", api_key=api_key, temperature=0)
+logger.info("LLM 初始化完成：model=deepseek-chat, temperature=0")
 
 # --------------------------------------------------------------------------- #
 # 2. 定义各个分支的提示词模板
@@ -118,6 +131,7 @@ destination_chains: dict[str, Any] = {}
 for info in prompt_infos:
     prompt = ChatPromptTemplate.from_template(info["prompt_template"])
     destination_chains[info["name"]] = prompt | llm | StrOutputParser()
+logger.info("候选分支构建完成：%s", list(destination_chains.keys()))
 
 # 4.2 定义路由模型的「结构化输出 schema」
 #     这是与旧版 MultiPromptChain 最大的区别：
@@ -244,11 +258,17 @@ if __name__ == "__main__":
         "How do Feynman Diagrams work?",
     ]
 
-    for q in questions:
+    logger.info("开始运行多提示路由链演示，共 %d 个问题", len(questions))
+    for idx, q in enumerate(questions, start=1):
+        logger.info("[%d/%d] 处理问题：%s", idx, len(questions), q)
+        # \033[0m 重置样式；结果已经是 str，可直接打印
+        answer = multi_prompt_chain.invoke({"input": q})
+        logger.info("[%d/%d] 回答完成，长度=%d 字符", idx, len(questions), len(answer))
+
         print(f"\n\033[1m 问题：{q}")
         print("-" * 50)
-        # \033[0m 重置样式；结果已经是 str，可直接打印
-        print("\033[0m" + multi_prompt_chain.invoke({"input": q}))
+        print("\033[0m" + answer)
+    logger.info("多提示路由链演示结束")
 
 # --------------------------------------------------------------------------- #
 # 7. 旧版写法对照（已废弃，仅供理解历史实现）

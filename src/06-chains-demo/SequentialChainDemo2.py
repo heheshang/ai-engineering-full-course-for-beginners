@@ -1,4 +1,15 @@
-"""链（Chain）演示 4：带并行分支的顺序链（Sequential Chain + RunnableParallel）。
+"""链（Chain）演示 3-2：带并行分支的顺序链（Sequential Chain + RunnableParallel）。
+
+与「演示 3」的关系
+------------------
+``SequentialChainDemo.py``（演示 3）演示的是「多段串联」：
+上一段的输出整体喂给下一段，靠 LCEL 的隐式包装规则完成数据传递。
+
+本文件（演示 3-2）补上的是「**并行分支 + 字段映射**」：
+用字典形式精确控制每一段能拿到哪些数据，而不是依赖隐式规则。
+
+编号说明：本文件是演示 3 的进阶版，所以编号为 3-2；
+下一个文件 ``RouterChainDemo.py`` 是演示 4。
 
 核心概念
 --------
@@ -32,18 +43,27 @@
   - ``SequentialChainDemo.py``：多段串联，上一段输出整体喂给下一段；
   - **本文件**：串联 + 并行 + 字段映射，用「字典」精确控制每一段
     能拿到哪些数据，而不是依赖隐式包装规则。
-
 依赖：pip install langchain langchain-deepseek python-dotenv
 """
 
 import os
+import sys
 from operator import itemgetter
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
 
 # --------------------------------------------------------------------------- #
 # 0. 加载环境变量
@@ -70,6 +90,7 @@ os.environ["DEEPSEEK_API_KEY"] = api_key
 #   - model    是具体模型名
 # temperature=0 让输出尽量确定，便于复现。
 llm = init_chat_model(model="deepseek-chat", api_key=api_key, temperature=0)
+logger.info("LLM 初始化完成：model=deepseek-chat, temperature=0")
 
 # --------------------------------------------------------------------------- #
 # 2. 第一条链：随机生成一个学术主题
@@ -96,6 +117,10 @@ topic_prompt = ChatPromptTemplate.from_messages(
 #
 # topic_chain 的输入是任意值（这里是空字典 {}），输出是 str。
 topic_chain = topic_prompt | llm | StrOutputParser()
+logger.info(
+    "第一条链构建完成：生成学术主题，输入变量=%s（为空，说明不依赖外部输入）",
+    topic_prompt.input_variables,
+)
 
 # --------------------------------------------------------------------------- #
 # 3. 第二条链：围绕主题生成 3 个发人深省的问题
@@ -113,6 +138,9 @@ question_prompt = ChatPromptTemplate.from_messages(
 
 # question_chain 的输入是 {"topic": "..."}，输出是 str。
 question_chain = question_prompt | llm | StrOutputParser()
+logger.info(
+    "第二条链构建完成：围绕主题生成问题，输入变量=%s", question_prompt.input_variables
+)
 
 # --------------------------------------------------------------------------- #
 # 4. 组装完整链：串联 + 并行
@@ -156,13 +184,18 @@ sequential_chain = (
     | RunnablePassthrough()
     | {"topic": itemgetter("topic"), "questions": question_chain}
 )
+logger.info("完整链组装完成：3 步（并行生成主题 → 透传 → 并行取主题+生成问题）")
 
 # --------------------------------------------------------------------------- #
 # 5. 调用并打印结果
 # --------------------------------------------------------------------------- #
 # 初始输入是空字典 {}：
 # 第一步的 topic_chain 不需要任何输入变量，所以空字典完全够用。
+logger.info("开始执行链（初始输入为空字典）")
 results = sequential_chain.invoke({})
+logger.info("链执行完成，返回字段：%s", list(results.keys()))
+logger.info("生成的主题：%s", results["topic"])
+logger.info("生成的问题，长度=%d 字符", len(results["questions"]))
 
 # 最终输出是一个字典：
 #   {"topic": "生成的学术主题", "questions": "3 个问题"}

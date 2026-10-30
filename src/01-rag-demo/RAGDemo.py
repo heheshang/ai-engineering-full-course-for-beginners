@@ -16,7 +16,13 @@ LangChain v1 的主要变化（本文件均已采用）：
 """
 
 import os
+import sys
 from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具。
+# 这样无论从哪个工作目录运行 `python src/01-rag-demo/RAGDemo.py`，
+# 都能找到 src/utils/logging_utils.py。
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
@@ -26,6 +32,11 @@ from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import create_retriever_tool
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+from utils.logging_utils import get_logger, log_exception
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
 
 # 读取项目根目录（或当前目录）下的 .env 文件，把环境变量加载进 os.environ。
 # 这样 DEEPSEEK_API_KEY 之类的密钥就不需要硬编码在代码里。
@@ -52,12 +63,15 @@ contain the answer, say that you don't know instead of making something up."""
 def print_header(step: str, title: str) -> None:
     """打印分步骤标题，让演示输出更易读。
 
+    同时写入一条日志，方便在日志文件里按步骤检索整个流程。
+
     Args:
         step: 步骤编号文案，如 "Step 1"。
         title: 步骤标题，如 "Preparing our document"。
     """
     print(f"\n{step}: {title}")
     print("-" * 50)
+    logger.info("========== %s: %s ==========", step, title)
 
 
 # --------------------------------------------------------------------------- #
@@ -75,8 +89,7 @@ def load_document() -> str:
     print_header("Step 1", "Preparing our document")
     # 示例文档：涵盖 AI、机器学习、深度学习、NLP、计算机视觉、强化学习六个知识点，
     # 便于后面用不同问题验证检索是否命中正确片段。
-    document = """
-Artificial Intelligence (AI) is transforming the way we live and work. Machine learning,
+    document = """Artificial Intelligence (AI) is transforming the way we live and work. Machine learning,
 a subset of AI, enables computers to learn from data without explicit programming.
 Deep learning, a type of machine learning, uses neural networks inspired by the human brain.
 
@@ -91,6 +104,7 @@ Reinforcement Learning is a type of machine learning where agents learn by inter
 with an environment. They receive rewards for good actions and penalties for bad ones.
 This is used in game playing, robotics, and autonomous systems.
 """
+    logger.info("文档加载完成，共 %d 字符", len(document))
     print("Document loaded. Length:", len(document), "characters")
     print("\nPreview of the document:")
     print(document[:200], "...\n")
@@ -140,6 +154,16 @@ def split_document(document: str) -> list[Document]:
         for i, chunk in enumerate(chunks)
     ]
 
+    # 统计每个片段的长度分布，用于观察 chunk_size / chunk_overlap 的实际效果
+    lengths = [len(d.page_content) for d in docs]
+    logger.info(
+        "文档切分完成：共 %d 个片段，最短 %d 字符，最长 %d 字符，平均 %.1f 字符",
+        len(docs),
+        min(lengths) if lengths else 0,
+        max(lengths) if lengths else 0,
+        (sum(lengths) / len(lengths)) if lengths else 0.0,
+    )
+
     print(f"Document has been split into {len(docs)} chunks.")
     print("\nExample chunks:")
     for i, doc in enumerate(docs[:3], start=1):
@@ -165,9 +189,11 @@ def create_embeddings():
     # init_embeddings 的参数格式为 "厂商:模型名"，厂商可选：
     # openai / huggingface / azure_openai / bedrock / google_vertexai 等。
     embeddings = init_embeddings("huggingface:sentence-transformers/all-MiniLM-L6-v2")
-    print("Embeddings initialized with model all-MiniLM-L6-v2")
+    logger.info("嵌入模型初始化完成：all-MiniLM-L6-v2")
     # 打印向量维度：all-MiniLM-L6-v2 输出 384 维；这决定了向量库里每条记录的长度。
-    print("Embedding dimension:", len(embeddings.embed_query("test")))
+    dimension = len(embeddings.embed_query("test"))
+    logger.info("嵌入向量维度=%d（向量库中每条记录的长度）", dimension)
+    print("Embedding dimension:", dimension)
     return embeddings
 
 
@@ -205,15 +231,19 @@ def create_vector_store(docs: list[Document], embeddings):
     # 直接用 from_texts 每次运行都会重复写入，导致向量库膨胀、检索结果出现重复。
     existing = vectorstore.get()["ids"]
     if existing:
+        logger.info("集合 '%s' 已存在（%d 条文档），跳过写入直接复用", COLLECTION_NAME, len(existing))
         print(
             f"Collection '{COLLECTION_NAME}' already exists ({len(existing)} docs). Reusing it."
         )
     else:
         vectorstore.add_documents(docs)
+        logger.info("已向集合 '%s' 写入 %d 个文档", COLLECTION_NAME, len(docs))
         print(f"Added {len(docs)} documents to the collection.")
 
+    total = len(vectorstore.get()["ids"])
+    logger.info("向量库就绪：集合=%s，总文档数=%d，存储目录=%s", COLLECTION_NAME, total, PERSIST_DIRECTORY)
     print("Vector store created with following details:")
-    print(f"- Number of texts: {len(vectorstore.get()['ids'])}")
+    print(f"- Number of texts: {total}")
     print(f"- Database location: {PERSIST_DIRECTORY}")
     return vectorstore
 
@@ -234,6 +264,7 @@ def test_similarity_search(vectorstore) -> None:
     query = "What is reinforcement learning?"
     # similarity_search：返回最相似的 k 个 Document（内部做 embedding + 相似度排序）。
     results = vectorstore.similarity_search(query, k=2)
+    logger.info("相似度检索完成：query=%r, k=2, 命中 %d 个片段", query, len(results))
 
     print(f"Query: {query}")
     print("\nTop 2 most relevant chunks:")
@@ -263,11 +294,13 @@ def build_agent(vectorstore):
     # 提前校验密钥，避免在调用时才抛出难以定位的鉴权错误。
     if not os.getenv("DEEPSEEK_API_KEY"):
         raise RuntimeError("DEEPSEEK_API_KEY is not set. Add it to your .env file.")
+    logger.info("检测到 DEEPSEEK_API_KEY，开始初始化对话模型")
 
     # init_chat_model("厂商:模型名") 是 v1 推荐的统一入口。
     # 换成 OpenAI 就是 "openai:gpt-4.1"，换成 Anthropic 就是 "anthropic:claude-sonnet-4-5"，
     # 业务代码完全不用改。temperature 越低输出越稳定，越高越发散。
     model = init_chat_model("deepseek:deepseek-chat", temperature=0.5)
+    logger.info("对话模型初始化完成：deepseek:deepseek-chat, temperature=0.5")
 
     # as_retriever 把向量库包装成标准 Retriever；search_kwargs={"k": N} 指定召回条数。
     retriever = vectorstore.as_retriever(search_kwargs={"k": TOP_K})
@@ -293,6 +326,7 @@ def build_agent(vectorstore):
         tools=[search_tool],
         system_prompt=SYSTEM_PROMPT,
     )
+    logger.info("Agent 构建完成，已注册工具：%s", [search_tool.name])
     print("Agent created with tools:", [search_tool.name])
     return agent
 
@@ -324,15 +358,33 @@ def main() -> None:
     ]
 
     print("\nAsking questions to our RAG system:")
-    for question in questions:
+    for idx, question in enumerate(questions, start=1):
         print("\nQuestion:", question)
+        logger.info("[%d/%d] 向 Agent 提问：%s", idx, len(questions), question)
         try:
             # Agent 的输入是消息列表；返回值同样是消息列表，
             # 最后一条即为模型的最终回答（AIMessage）。
             result = agent.invoke({"messages": [HumanMessage(content=question)]})
-            print("Answer:", result["messages"][-1].content)
+            answer = result["messages"][-1].content
+            print("Answer:", answer)
+            # 记录本次调用的 token 用量，便于统计成本
+            usage = getattr(result["messages"][-1], "usage_metadata", None)
+            if usage:
+                logger.info(
+                    "[%d/%d] 回答完成，token 用量：输入=%s，输出=%s，合计=%s",
+                    idx, len(questions),
+                    usage.get("input_tokens"), usage.get("output_tokens"),
+                    usage.get("total_tokens"),
+                )
+            else:
+                logger.info("[%d/%d] 回答完成，长度=%d 字符（未返回 token 用量）",
+                            idx, len(questions), len(answer))
         except Exception as exc:  # noqa: BLE001 - 演示脚本，单个问题失败不影响其余
+            # 单个问题失败不应中断整个演示：记录完整堆栈后继续下一个问题
+            log_exception(logger, "[%d/%d] 回答问题失败：%s", idx, len(questions), question)
             print("Error getting answer:", exc)
+
+    logger.info("RAG 演示流程全部结束")
 
 
 if __name__ == "__main__":

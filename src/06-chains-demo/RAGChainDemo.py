@@ -61,6 +61,18 @@ from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 加载环境变量
 # --------------------------------------------------------------------------- #
@@ -180,6 +192,7 @@ embeddings = OpenAIEmbeddings(
 #   - 用 collection_name 指定集合名
 #   - 加 ids / metadata 做过滤、去重
 vectorstore = Chroma.from_documents(documents=splits, embedding=embeddings)
+logger.info("向量库建库完成：共写入 %d 个 chunk", len(splits))
 
 # --------------------------------------------------------------------------- #
 # 6. 创建检索器（Retriever）
@@ -194,6 +207,8 @@ vectorstore = Chroma.from_documents(documents=splits, embedding=embeddings)
 # 想用「 MMR（最大边际相关）」去重多样性：
 #   search_type="mmr"
 retriever = vectorstore.as_retriever()
+logger.info("检索器创建完成：search_type=%s, k=%s",
+             retriever.search_type, retriever.search_kwargs.get("k"))
 
 # --------------------------------------------------------------------------- #
 # 7. 编写 RAG 提示词模板
@@ -241,9 +256,20 @@ prompt = ChatPromptTemplate.from_template(template)
 
 
 def debug_print(name):
+    """构造一个调试用的 RunnableLambda，把每一步的中间结果打印并记录到日志。
+
+    Args:
+        name: 该步骤的名称（如 "检索结果"）。
+
+    Returns:
+        一个 RunnableLambda，接收上一步的输出，原样返回，同时输出调试信息。
+    """
+
     def _f(x):
         print(f"\n=== {name} ===")
         print(x)
+        # 日志只记录摘要（长度/类型），避免把整段上下文重复写进日志文件
+        logger.debug("链节点 %s：输出类型=%s, 长度=%d", name, type(x).__name__, len(str(x)))
         return x
 
     return RunnableLambda(_f)
@@ -267,7 +293,9 @@ rag_chain = (
 # --------------------------------------------------------------------------- #
 # invoke 的入参就是上面字典分支的输入，也就是「问题字符串」。
 question = "What is Apple printer sales in 2011 Q4?"
+logger.info("开始调用 RAG 链，问题：%s", question)
 result = rag_chain.invoke(question)
+logger.info("RAG 链调用完成，答案长度=%d 字符", len(result.content))
 
 # 注意：当前链尾**没有**接 StrOutputParser()（被注释掉了），
 # 所以 invoke() 返回的是一个 AIMessage 对象，而不是字符串，
@@ -341,6 +369,13 @@ usage_metadata = getattr(result, "usage_metadata", None)
 print(
     f"\nusage_metadata:\n{json.dumps(usage_metadata, indent=2, ensure_ascii=False, default=str)}"
 )
+if usage_metadata:
+    logger.info(
+        "token 用量：输入=%s，输出=%s，合计=%s",
+        usage_metadata.get("input_tokens"),
+        usage_metadata.get("output_tokens"),
+        usage_metadata.get("total_tokens"),
+    )
 
 # additional_kwargs：额外字段，不同厂商内容不同。
 # DeepSeek 会在这里返回 reasoning_content（思维链）和 refusal（拒答标记）。

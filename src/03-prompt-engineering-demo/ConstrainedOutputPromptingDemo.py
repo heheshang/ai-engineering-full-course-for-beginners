@@ -61,6 +61,18 @@ from langchain_core.messages import (
 from langchain_core.prompts import PromptTemplate
 from langchain_deepseek import ChatDeepSeek
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger, log_exception
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 准备工作
 # --------------------------------------------------------------------------- #
@@ -77,6 +89,7 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 #     约束式输出场景通常希望结果稳定，可以调低到 0.2~0.4。
 #   api_key：从环境变量显式传入。
 llm = ChatDeepSeek(model="deepseek-flash", temperature=0.5, api_key=api_key)
+logger.info("LLM 初始化完成：model=deepseek-flash, temperature=0.5")
 
 # --------------------------------------------------------------------------- #
 # 1. 定义约束式提示词模板
@@ -128,6 +141,8 @@ constrained_agent = create_agent(
         content=constrained_prompt.format(customer_message=customer_message)
     ),
 )
+logger.info("Agent 创建完成，约束模板渲染后长度=%d 字符",
+             len(constrained_prompt.format(customer_message=customer_message)))
 
 # --------------------------------------------------------------------------- #
 # 4. 调用 Agent
@@ -140,13 +155,26 @@ constrained_agent = create_agent(
 # 如果希望完全按"纯 user 输入"的语义来写，可以把 customer_message
 # 作为 HumanMessage 的内容传入，并把 system prompt 里那句
 # "Customer message: {customer_message}" 删掉。
-result = constrained_agent.invoke(
-    {
-        "messages": [
-            HumanMessage(content="Please respond to my message."),
-        ]
-    }
-)
+logger.info("开始调用 Agent（约束式提示）")
+try:
+    result = constrained_agent.invoke(
+        {
+            "messages": [
+                HumanMessage(content="Please respond to my message."),
+            ]
+        }
+    )
+except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+    log_exception(logger, "Agent 调用失败")
+    raise
+
+logger.info("Agent 调用完成，返回 %d 条消息", len(result["messages"]))
+usage = getattr(result["messages"][-1], "usage_metadata", None)
+if usage:
+    logger.info(
+        "token 用量：输入=%s，输出=%s，合计=%s",
+        usage.get("input_tokens"), usage.get("output_tokens"), usage.get("total_tokens"),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -241,6 +269,17 @@ checks = {
     '"I understand" 恰好 1 次': understand_count == 1,
     "第 3 段以问句结尾": paragraphs[-1].strip().endswith("?") if paragraphs else False,
 }
+
+# 日志：把校验结果同时写进日志文件，方便在 CI 或回归测试里直接判定成败
+failed = [name for name, ok in checks.items() if not ok]
+if failed:
+    logger.warning("约束校验未通过，失败项：%s", failed)
+else:
+    logger.info("约束校验全部通过（共 %d 项）", len(checks))
+logger.info(
+    "校验统计：段落数=%d，感叹号=%d，道歉=%d，I understand=%d",
+    len(paragraphs), exclamation_count, apology_count, understand_count,
+)
 
 print("\n" + "=" * 70)
 print("4) 约束自动校验")

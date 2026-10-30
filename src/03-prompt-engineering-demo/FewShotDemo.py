@@ -64,6 +64,18 @@ from langchain_core.messages import (
 from langchain_core.prompts import PromptTemplate
 from langchain_deepseek import ChatDeepSeek
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger, log_exception
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 准备工作
 # --------------------------------------------------------------------------- #
@@ -81,6 +93,7 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 #     所以温度不宜太高，0.2~0.5 比较合适。
 #   api_key：从环境变量显式传入。
 llm = ChatDeepSeek(model="deepseek-flash", temperature=0.5, api_key=api_key)
+logger.info("LLM 初始化完成：model=deepseek-flash, temperature=0.5")
 
 # --------------------------------------------------------------------------- #
 # 1. 定义少样本提示词模板
@@ -144,6 +157,8 @@ few_shot_agent = create_agent(
         content=few_shot_prompt.format(customer_message=customer_message)
     ),
 )
+logger.info("Agent 创建完成，提示词（含示例）渲染后长度=%d 字符",
+             len(few_shot_prompt.format(customer_message=customer_message)))
 
 # --------------------------------------------------------------------------- #
 # 4. 调用 Agent
@@ -152,9 +167,22 @@ few_shot_agent = create_agent(
 # 注意区分两类内容：
 #   - system_prompt（角色 + 示例 + 真实输入）-> 走 system 位置
 #   - HumanMessage                         -> 走 user 位置，触发模型作答
-result = few_shot_agent.invoke(
-    {"messages": [HumanMessage(content="Please respond to my message.")]}
-)
+logger.info("开始调用 Agent（少样本提示）")
+try:
+    result = few_shot_agent.invoke(
+        {"messages": [HumanMessage(content="Please respond to my message.")]}
+    )
+except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+    log_exception(logger, "Agent 调用失败")
+    raise
+
+logger.info("Agent 调用完成，返回 %d 条消息", len(result["messages"]))
+usage = getattr(result["messages"][-1], "usage_metadata", None)
+if usage:
+    logger.info(
+        "token 用量：输入=%s，输出=%s，合计=%s",
+        usage.get("input_tokens"), usage.get("output_tokens"), usage.get("total_tokens"),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -258,6 +286,15 @@ checks = {
     "长度与示例相当（不显著偏离）": 80 <= len(answer) <= 800,
     "句数不少于 3 句": len(sentences) >= 3,
 }
+
+# 日志：把风格指纹自检结果写进日志，便于回归对比（换模型/换提示词后看是否漂移）
+failed = [name for name, ok in checks.items() if not ok]
+if failed:
+    logger.warning("风格指纹自检未通过，失败项：%s", failed)
+else:
+    logger.info("风格指纹自检全部通过（共 %d 项）", len(checks))
+logger.info("回答统计：长度=%d 字符，句数=%d，以问句结尾=%s",
+            len(answer), len(sentences), has_question)
 
 for name, ok in checks.items():
     print(f"[{'PASS' if ok else 'FAIL'}] {name}")

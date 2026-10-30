@@ -22,7 +22,18 @@
     - MarkdownHeader：以"文档结构"为尺度，不关心块有多大。
 """
 
-from langchain_text_splitters import TokenTextSplitter
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from langchain_text_splitters import TokenTextSplitter  # noqa: E402
+
+from utils.logging_utils import get_logger  # noqa: E402
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
 
 # --------------------------------------------------------------------------- #
 # 输入文档：与前三份演示相同的 Markdown 文档，保证横向可比
@@ -75,6 +86,28 @@ splitter = TokenTextSplitter(
 #   encoding = tiktoken.get_encoding("cl100k_base")
 #   print(len(encoding.encode(chunk)))
 chunks = splitter.split_text(sample_text)
+
+# 日志：记录切分规模。Token 切分器的 chunk_size 是「token 数」而非字符数，
+# 所以这里额外用 tiktoken 编码器核对真实 token 数（默认的 cl100k_base）。
+try:
+    import tiktoken
+
+    encoding = tiktoken.get_encoding("cl100k_base")
+    token_counts = [len(encoding.encode(chunk)) for chunk in chunks]
+    logger.info(
+        "切分完成：原文 %d 字符 -> %d 个片段（token 数：最少 %d，最多 %d，平均 %.1f）",
+        len(sample_text), len(chunks),
+        min(token_counts) if token_counts else 0,
+        max(token_counts) if token_counts else 0,
+        (sum(token_counts) / len(token_counts)) if token_counts else 0.0,
+    )
+    oversized = [i for i, n in enumerate(token_counts, start=1) if n > 100]
+    if oversized:
+        logger.warning("以下片段 token 数超过 chunk_size=100：%s", oversized)
+    else:
+        logger.info("所有片段 token 数均未超过 chunk_size=100")
+except ImportError:
+    logger.warning("未安装 tiktoken，跳过 token 数核对（pip install tiktoken）")
 
 for i, chunk in enumerate(chunks, 1):
     print(f"\nChunk {i}:")

@@ -55,6 +55,18 @@ from pathlib import Path
 
 from langchain_community.document_loaders import PyPDFLoader
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 准备工作
 # --------------------------------------------------------------------------- #
@@ -71,6 +83,7 @@ print("=" * 70)
 
 loader = PyPDFLoader(str(PDF_PATH))
 pages = loader.load()
+logger.info("PDF 加载完成：文件=%s，共 %d 页 -> %d 个 Document", PDF_PATH.name, len(pages), len(pages))
 
 print(f"共加载 {len(pages)} 个 Document（对应 PDF 的 {len(pages)} 页）")
 print("类型：", type(pages))
@@ -101,6 +114,7 @@ print("2) load_and_split() —— 再叠加字符级切分（默认 chunk_size=4
 print("=" * 70)
 
 chunks = loader.load_and_split()
+logger.info("默认切分完成：%d 页 -> %d 个 chunk（默认 chunk_size=4000）", len(pages), len(chunks))
 
 print(f"切分后共 {len(chunks)} 个 chunk（>= 页数 {len(pages)}）")
 for i, chunk in enumerate(chunks):
@@ -130,6 +144,8 @@ splitter = RecursiveCharacterTextSplitter(chunk_size=150, chunk_overlap=30)
 # load_and_split(text_splitter=None) 的默认值是 RecursiveCharacterTextSplitter()，
 # 即默认 chunk_size=4000, chunk_overlap=200。
 small_chunks = loader.load_and_split(text_splitter=splitter)
+logger.info("自定义切分完成：%d 页 -> %d 个 chunk（chunk_size=150, chunk_overlap=30）",
+            len(pages), len(small_chunks))
 
 print(f"切分后共 {len(small_chunks)} 个 chunk")
 for i, chunk in enumerate(small_chunks):
@@ -159,6 +175,7 @@ slim_pages = [
 ]
 
 print("精简前第 0 页的 metadata 字段数：", len(pages[0].metadata))
+logger.info("metadata 精简：字段数 %d -> %d", len(pages[0].metadata), len(slim_pages[0]["metadata"]))
 print("精简后第 0 页的 metadata：")
 print(json.dumps(slim_pages[0]["metadata"], indent=2, ensure_ascii=False))
 

@@ -64,6 +64,18 @@ from langchain_core.messages import (
 from langchain_core.prompts import PromptTemplate
 from langchain_deepseek import ChatDeepSeek
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger, log_exception
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 准备工作
 # --------------------------------------------------------------------------- #
@@ -79,6 +91,7 @@ api_key = os.getenv("DEEPSEEK_API_KEY")
 #   temperature：0.5 控制随机性。0 最确定、1 以上越发散。
 #   api_key：从环境变量显式传入。
 llm = ChatDeepSeek(model="deepseek-flash", temperature=0.5, api_key=api_key)
+logger.info("LLM 初始化完成：model=deepseek-flash, temperature=0.5")
 
 # --------------------------------------------------------------------------- #
 # 1. 定义提示词模板（按 RTCF 四区块组织）
@@ -133,6 +146,7 @@ is what I get? I want my money back immediately!
 # 不要复用 role_context_prompt 这个变量名去存字符串 ——
 # 同名变量一会儿是模板、一会儿是字符串，是很常见的 bug 来源。
 system_prompt = role_context_prompt.format(customer_message=customer_message)
+logger.info("RTCF 模板渲染完成，系统提示词长度=%d 字符", len(system_prompt))
 
 # --------------------------------------------------------------------------- #
 # 4. 创建 Agent 并调用
@@ -143,6 +157,7 @@ role_context_agent = create_agent(
     model=llm,
     system_prompt=SystemMessage(content=system_prompt),
 )
+logger.info("Agent 创建完成（RTCF 四区块结构）")
 
 # 说明：客户消息**既**出现在 system prompt 的 Context 区块，
 # **又**作为 HumanMessage 传入。这样看起来重复，但各有分工：
@@ -150,9 +165,22 @@ role_context_agent = create_agent(
 #   - HumanMessage：告诉模型"现在请回答这条消息"，明确本轮的触发对象。
 # 如果追求 token 极致，可从模板中删掉 Context 区块的 {customer_message}，
 # 只保留 HumanMessage 里的那一份；两种写法都能跑通，值得对比一下效果。
-result = role_context_agent.invoke(
-    {"messages": [HumanMessage(content=customer_message)]}
-)
+logger.info("开始调用 Agent（RTCF 结构化提示）")
+try:
+    result = role_context_agent.invoke(
+        {"messages": [HumanMessage(content=customer_message)]}
+    )
+except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+    log_exception(logger, "Agent 调用失败")
+    raise
+
+logger.info("Agent 调用完成，返回 %d 条消息", len(result["messages"]))
+usage = getattr(result["messages"][-1], "usage_metadata", None)
+if usage:
+    logger.info(
+        "token 用量：输入=%s，输出=%s，合计=%s",
+        usage.get("input_tokens"), usage.get("output_tokens"), usage.get("total_tokens"),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -286,6 +314,15 @@ checks = {
     # 具体长度要求应该写进 [FORMAT] 区块由模型遵守，而不是靠这里猜）
     "长度合理（80~2000 字符）": 80 <= len(answer) <= 2000,
 }
+
+# 日志：把 FORMAT 规则自检结果写进日志，便于回归测试直接判定成败
+failed = [name for name, ok in checks.items() if not ok]
+if failed:
+    logger.warning("FORMAT 规则自检未通过，失败项：%s", failed)
+else:
+    logger.info("FORMAT 规则自检全部通过（共 %d 项）", len(checks))
+logger.info("回答统计：段落数=%d，句子数=%d，长度=%d 字符",
+            len(paragraphs), len(sentences), len(answer))
 
 for name, ok in checks.items():
     print(f"[{'PASS' if ok else 'FAIL'}] {name}")

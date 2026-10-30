@@ -37,6 +37,18 @@ from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 # --------------------------------------------------------------------------- #
 # 0. 加载环境变量
 # --------------------------------------------------------------------------- #
@@ -62,6 +74,7 @@ os.environ["DEEPSEEK_API_KEY"] = api_key
 #   - model    是具体的模型名
 # temperature=0 表示尽量确定性的输出，适合需要稳定复现的流水线。
 llm = init_chat_model(model="deepseek-chat", api_key=api_key, temperature=0)
+logger.info("LLM 初始化完成：model=deepseek-chat, temperature=0")
 
 # --------------------------------------------------------------------------- #
 # 2. 第一段链：生成文章大纲
@@ -81,9 +94,12 @@ first_prompt = ChatPromptTemplate.from_template(template)
 # 运行时：first_prompt.invoke({"topic": topic}) -> PromptValue
 #         llm.invoke(PromptValue)                   -> AIMessage
 chain_one = first_prompt | llm
+logger.info("第一段链构建完成：生成文章大纲，输入变量=%s", first_prompt.input_variables)
 
 # 先单独跑一遍第一段，看看大纲长什么样（便于观察两段之间传递的内容）
+logger.info("调用第一段链，主题=%s", topic)
 chain_one_result = chain_one.invoke(topic)
+logger.info("第一段完成，大纲长度=%d 字符", len(chain_one_result.content))
 
 # \033[1m = 加粗，\033[0m = 重置样式；用 ANSI 转义给控制台输出加一点层次感
 print("\n\033[1m Give me a simple bullet point outline for a blog post")
@@ -103,6 +119,7 @@ second_prompt = ChatPromptTemplate.from_template(template)
 
 # 第二段链 = 提示词 | 模型
 chain_two = second_prompt | llm
+logger.info("第二段链构建完成：按大纲写文章，输入变量=%s", second_prompt.input_variables)
 
 # print('CHAIN TWO ==========>', chain_two)   # 调试用：可打印出链的结构
 
@@ -119,9 +136,12 @@ chain_two = second_prompt | llm
 # 也就是说，LCEL 自动完成了「上一步输出 → 下一步输入」的传递，
 # 这正是旧版 SimpleSequentialChain 的核心行为。
 full_chain = chain_one | chain_two
+logger.info("完整顺序链组装完成：2 段串联（共 2 次模型调用）")
 
 # invoke 传入主题；后续段的输入由管道自动衔接。
+logger.info("开始执行完整顺序链")
 result = full_chain.invoke(topic)
+logger.info("顺序链执行完成，文章长度=%d 字符", len(result.content))
 
 print("\n\033[1m Write a blog post using the outline")
 print("-" * 50)

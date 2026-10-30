@@ -51,6 +51,20 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+import sys
+from pathlib import Path
+
+# 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具。
+# 注意：本文件位于 src/04-document-loaders-demo/data/ 下，比其它演示脚本深一层，
+# 所以这里要用 parents[2] 才能定位到 src 目录。
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from utils.logging_utils import get_logger
+
+# 初始化 logger：日志同时输出到控制台和 logs/course.log
+logger = get_logger(__name__)
+
+
 OUTPUT_PATH = Path(__file__).resolve().parent / "SamplePDFFile.pdf"
 
 # 候选 CJK 字体路径：按优先级依次尝试，找到第一个能用的即可。
@@ -65,14 +79,24 @@ CJK_FONT_NAME = "CJKEmbedded"
 
 
 def register_cjk_font() -> str:
-    """注册并返回可用的 CJK 字体名；找不到时回退到内置 Helvetica。"""
+    """注册并返回可用的 CJK 字体名；找不到时回退到内置 Helvetica。
+
+    中文字体是必须的：PDF 若不嵌入 CJK 字体，
+    PyPDFLoader 提取出来的中文会全是 ■■■■。
+
+    Returns:
+        成功注册的字体名；全部候选都不可用时返回 "Helvetica"（不支持中文）。
+    """
     for candidate in CJK_FONT_CANDIDATES:
         if Path(candidate).exists():
             try:
                 pdfmetrics.registerFont(TTFont(CJK_FONT_NAME, candidate))
+                logger.info("已注册 CJK 字体：%s（来自 %s）", CJK_FONT_NAME, candidate)
                 return CJK_FONT_NAME
-            except Exception:  # noqa: BLE001 - 字体注册失败时继续尝试下一个
+            except Exception as exc:  # noqa: BLE001 - 字体注册失败时继续尝试下一个
+                logger.warning("字体注册失败：%s（%s），尝试下一个候选", candidate, exc)
                 continue
+    logger.error("未找到可用的 CJK 字体，中文将无法被正确提取")
     print("[warn] 未找到可用的 CJK 字体，中文将无法被正确提取", file=sys.stderr)
     return "Helvetica"
 
@@ -236,7 +260,9 @@ def build_pdf(output_path: Path) -> None:
         if index < total_pages - 1:
             story.append(PageBreak())
 
+    logger.info("开始构建 PDF，共 %d 页 -> %s", total_pages, output_path)
     doc.build(story)
+    logger.info("PDF 构建完成：%s（%d 字节）", output_path, output_path.stat().st_size)
 
 
 if __name__ == "__main__":
