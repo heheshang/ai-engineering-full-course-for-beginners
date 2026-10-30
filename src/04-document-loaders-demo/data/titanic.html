@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Titanic 乘客名单 - Titanic Dataset</title>
+    <style>
+        body { font-family: "Helvetica Neue", Arial, sans-serif; margin: 24px; color: #222; }
+        h1 { font-size: 24px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ccc; padding: 6px 10px; font-size: 14px; }
+        th { background: #f0f0f0; text-align: left; }
+        tr:nth-child(even) { background: #fafafa; }
+        .meta { color: #666; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <h1>Titanic 乘客名单</h1>
+    <p class="meta">
+        来源：Kaggle Titanic Dataset（部分抽样，10 条代表性记录）&nbsp;|&nbsp;
+        字段含义：PassengerId 乘客编号，Survived 是否生还（1 是 / 0 否），
+        Pclass 舱位等级（1 头等 / 2 二等 / 3 三等），Sex 性别，
+        Age 年龄，SibSp 同行兄弟姊妹数，Parch 同行父母/子女数，
+        Fare 票价，Embarked 登船港口（C Cherbourg / Q Queenstown / S Southampton）
+    </p>
+
+    <table id="passengers">
+        <thead>
+            <tr>
+                <th>PassengerId</th>
+                <th>Survived</th>
+                <th>Pclass</th>
+                <th>Sex</th>
+                <th>Age</th>
+                <th>SibSp</th>
+                <th>Parch</th>
+                <th>Fare</th>
+                <th>Embarked</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>1</td>
+                <td>0</td>
+                <td>3</td>
+                <td>male</td>
+                <td>22.0</td>
+                <td>1</td>
+                <td>0</td>
+                <td>7.25</td>
+                <td>S</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td>1</td>
+                <td>1</td>
+                <td>female</td>
+                <td>38.0</td>
+                <td>1</td>
+                <td>0</td>
+                <td>71.2833</td>
+                <td>C</td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td>1</td>
+                <td>3</td>
+                <td>female</td>
+                <td>26.0</td>
+                <td>0</td>
+                <td>0</td>
+                <td>7.925</td>
+                <td>S</td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td>1</td>
+                <td>1</td>
+                <td>female</td>
+                <td>35.0</td>
+                <td>1</td>
+                <td>0</td>
+                <td>53.1</td>
+                <td>S</td>
+            </tr>
+            <tr>
+                <td>5</td>
+                <td>0</td>
+                <td>3</td>
+                <td>male</td>
+                <td>35.0</td>
+                <td>0</td>
+                <td>0</td>
+                <td>8.05</td>
+                <td>S</td>
+            </tr>
+            <tr>
+                <td>6</td>
+                <td>0</td>
+                <td>3</td>
+                <td>male</td>
+                <td>NaN</td>
+                <td>1</td>
+                <td>1</td>
+                <td>8.4583</td>
+                <td>Q</td>
+            </tr>
+            <tr>
+                <td>7</td>
+                <td>0</td>
+                <td>3</td>
+                <td>male</td>
+                <td>27.0</td>
+                <td>0</td>
+                <td>0</td>
+                <td>8.2667</td>
+                <td>S</td>
+            </tr>
+            <tr>
+                <td>8</td>
+                <td>1</td>
+                <td>3</td>
+                <td>female</td>
+                <td>2.0</td>
+                <td>1</td>
+                <td>2</td>
+                <td>21.6792</td>
+                <td>C</td>
+            </tr>
+            <tr>
+                <td>9</td>
+                <td>0</td>
+                <td>3</td>
+                <td>male</td>
+                <td>NaN</td>
+                <td>0</td>
+                <td>0</td>
+                <td>11.5109</td>
+                <td>S</td>
+            </tr>
+            <tr>
+                <td>10</td>
+                <td>1</td>
+                <td>2</td>
+                <td>female</td>
+                <td>4.0</td>
+                <td>0</td>
+                <td>1</td>
+                <td>26.5500</td>
+                <td>S</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>数据摘要</h2>
+    <ul>
+        <li>总样本量（抽样后）：10 条</li>
+        <li>生还人数：5 人；遇难人数：5 人</li>
+        <li>舱位分布：一等 3 人，二等 1 人，三等 6 人</li>
+        <li>性别分布：男性 6 人，女性 4 人</li>
+        <li>登船港口分布：Southampton 6 人，Cherbourg 3 人，Queenstown 1 人</li>
+        <li>数据质量问题：<code>Age</code> 列存在缺失值（以 <code>NaN</code> 表示）</li>
+    </ul>
+</body>
+</html>
