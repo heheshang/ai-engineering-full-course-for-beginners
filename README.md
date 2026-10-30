@@ -310,6 +310,47 @@ pytest -m "not slow"
 python evals/run_eval.py --suite rag --threshold 0.7
 ```
 
+### 评测报告
+
+**每次运行都会在 `evals/reports/` 下生成报告**——不管用 `pytest` 还是
+`python evals/run_eval.py`，入口不同但产物格式一致：
+
+| 文件 | 内容 |
+| --- | --- |
+| `evaluation_<ts>.html` | 自包含 HTML 报告：概览卡片 + 用例总览 + 指标明细 |
+| `evaluation_<ts>.md` | 同内容的 Markdown 版，便于贴进 PR / issue |
+| `test_run_<ts>.json` | DeepEval 原生 test run（LLM 指标的完整明细） |
+| `latest.html` | 最近一次 HTML 报告的副本，直接打开即可 |
+
+```bash
+# 跑完后打开报告
+open evals/reports/latest.html
+```
+
+**为什么不用 DeepEval 自带的 HTML 导出**
+
+DeepEval 的 `export_to_html` 只覆盖 **LLM 评判** 的用例；
+而本套件还有一整组**离线确定性用例**（`test_offline_ingestion.py`），
+它们用普通 `assert` 断言，根本不进入 DeepEval 的 test run。
+直接用自带导出会让离线用例在报告里彻底消失，
+让人误以为「只跑了 LLM 评判那几条」。
+
+所以 `evals/report.py` 自己渲染报告，把两类用例放进同一张总览表：
+
+* **用例结果**：由 `conftest.py` 的 `pytest_runtest_makereport` 钩子逐条采集
+  （不依赖 pytest 内部状态机，xdist 并行执行时也能正确汇总）；
+* **指标明细**：从 DeepEval 的 `global_test_run_manager` 取，
+  需要先让 DeepEval 进入「运行中」状态（即 `DEEPEVAL=1`），
+  这一步在 `pytest_configure` 里完成（必须早于 DeepEval 插件的
+  `pytest_sessionstart`）。
+
+报告支持 `--eval-identifier` / `--identifier` 自定义标题：
+
+```bash
+pytest --eval-identifier nightly
+python evals/run_eval.py --suite rag --identifier rag-regression
+```
+
 ### 裁判模型配置
 
 裁判模型通过环境变量切换，默认直连 DeepSeek：
@@ -329,8 +370,9 @@ EVAL_SKIP_LLM=0                # 设为 1 则跳过所有 LLM 评判用例
 
 ```
 evals/
-├── conftest.py        # pytest fixture（裁判模型、检索器、Agent）
+├── conftest.py        # pytest fixture（裁判模型、检索器、Agent）+ 结果采集
 ├── eval_config.py     # 裁判模型配置 + 评测数据集
+├── report.py          # 报告渲染（HTML / Markdown）+ DeepEval 指标提取
 ├── sut.py             # 被测系统适配层（把演示脚本包装成可调用函数）
 ├── run_eval.py        # 独立运行脚本（带报告）
 └── test_*.py          # 各方向的评测用例

@@ -38,6 +38,5 @@ storage.db
 .deepeval/
 evals/reports/
 evals/.pytest_cache/
-
 # pytest
 .pytest_cache/

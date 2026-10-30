@@ -42,14 +42,12 @@ sys.path.insert(0, str(EVALS_DIR))
 sys.path.insert(0, str(EVALS_DIR.parent / "src"))
 
 from dotenv import load_dotenv  # noqa: E402
-from eval_config import judge_provider, threshold  # noqa: E402
+from eval_config import judge_model_name, judge_provider, threshold  # noqa: E402
+from report import REPORT_DIR  # noqa: E402
 
 from utils.logging_utils import get_logger  # noqa: E402
 
 logger = get_logger(__name__)
-
-# 报告输出目录
-REPORT_DIR = EVALS_DIR / "reports"
 
 # 各套件对应的测试文件
 SUITES = {
@@ -105,6 +103,10 @@ def parse_args() -> argparse.Namespace:
         default=str(REPORT_DIR),
         help=f"报告输出目录（默认 {REPORT_DIR}）",
     )
+    parser.add_argument(
+        "--identifier",
+        help="本次运行的标识，会写进报告标题与 DeepEval test run",
+    )
     return parser.parse_args()
 
 
@@ -138,10 +140,16 @@ def main() -> int:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # 报告目录通过环境变量传给 conftest，让 pytest 侧与本脚本看到同一个目录
+    os.environ["EVAL_REPORT_DIR"] = str(output_dir)
+
+    # 本次运行的标识：会出现在报告标题与 DeepEval test run 里
+    identifier = args.identifier or ("+".join(selected) if args.suite else "all")
+
     logger.info("=" * 60)
     logger.info("评测套件启动")
     logger.info("  测试文件   ：%s", ", ".join(selected))
-    logger.info("  裁判模型   ：%s", judge_provider())
+    logger.info("  裁判模型   ：%s / %s", judge_provider(), judge_model_name())
     logger.info("  通过阈值   ：%.2f", threshold())
     logger.info("  跳过 LLM   ：%s", args.skip_llm)
     logger.info("  报告目录   ：%s", output_dir)
@@ -152,6 +160,8 @@ def main() -> int:
 
     test_paths = [str(EVALS_DIR / name) for name in selected]
 
+    # 报告由 conftest.py 的 pytest_sessionfinish 钩子统一生成，
+    # 这样直接跑 `pytest` 也会产出同样格式的报告。
     exit_code = pytest.main(
         [
             *test_paths,
@@ -159,6 +169,8 @@ def main() -> int:
             "--tb=short",
             "-p",
             "no:randomly",
+            "--eval-identifier",
+            identifier,
         ]
     )
 
@@ -167,6 +179,7 @@ def main() -> int:
         logger.info("评测全部通过")
     else:
         logger.warning("评测存在失败用例，退出码 %d", exit_code)
+    logger.info("报告目录：%s", output_dir)
     logger.info("=" * 60)
 
     return int(exit_code)

@@ -1,7 +1,8 @@
-.PHONY: help install fmt fmt-check lint lint-fix check test test-offline logs-check clean
+.PHONY: help install fmt fmt-check lint lint-fix check test test-offline eval report report-open logs-check clean
 
 PY := uv run
 RUFF := $(PY) ruff
+REPORTS := evals/reports
 
 help:  ## 显示所有可用命令
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -24,11 +25,20 @@ lint-fix:  ## 静态检查并自动修复可修复项
 
 check: fmt-check lint  ## CI 用：格式 + 静态检查
 
-test:  ## 运行全部评测（需要裁判模型凭据）
+test:  ## 运行全部评测（需要裁判模型凭据），并生成报告
 	$(PY) pytest
 
-test-offline:  ## 只跑离线用例，无需任何 API Key
+test-offline:  ## 只跑离线用例，无需任何 API Key，并生成报告
 	EVAL_SKIP_LLM=1 $(PY) pytest -q
+
+eval:  ## 跑完整评测并生成带报告的产物
+	$(PY) python evals/run_eval.py
+
+report:  ## 列出已生成的评测报告
+	@ls -lh $(REPORTS) 2>/dev/null || echo "尚无报告，先运行 make eval"
+
+report-open:  ## 在浏览器中打开最近一次评测报告
+	@open $(REPORTS)/latest.html
 
 logs-check:  ## 静态检查各演示脚本的日志接入
 	$(PY) python tools/check_logging.py
