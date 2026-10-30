@@ -27,7 +27,6 @@ RAG 评测的**核心逻辑**：把「检索」和「生成」拆开分别评。
 from __future__ import annotations
 
 import pytest
-
 from eval_config import RAG_GOLDEN_ANSWERS, build_g_eval
 
 # 三组评测问题，分别对应三个知识点
@@ -56,7 +55,6 @@ def _build_rag_case(judge, retriever, rag_agent, key: str, question: str):
         ``LLMTestCase`` 实例。
     """
     from deepeval.test_case import LLMTestCase
-
     from sut import answer_with_rag, retrieve_context
 
     context = retrieve_context(retriever, question)
@@ -205,7 +203,6 @@ def test_rag_unanswerable_question(judge, eval_threshold, retriever, rag_agent):
     """
     from deepeval import assert_test
     from deepeval.test_case import LLMTestCase
-
     from sut import answer_with_rag, retrieve_context
 
     question = "What is the capital of Australia and how many people live there?"

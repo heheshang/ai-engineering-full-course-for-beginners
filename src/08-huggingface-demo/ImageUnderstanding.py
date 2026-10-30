@@ -35,11 +35,11 @@ from pathlib import Path
 # 都能 import 到 src/utils 下的公共工具（如日志模块）。
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import requests  # noqa: E402
-from PIL import Image  # noqa: E402
-from transformers import BlipForQuestionAnswering, BlipProcessor  # noqa: E402
+import requests
+from PIL import Image
+from transformers import BlipForQuestionAnswering, BlipProcessor
 
-from utils.logging_utils import get_logger  # noqa: E402
+from utils.logging_utils import get_logger
 
 # 初始化 logger：日志同时输出到控制台和 logs/course.log
 logger = get_logger(__name__)
@@ -60,9 +60,7 @@ processor = BlipProcessor.from_pretrained(MODEL_NAME)
 model = BlipForQuestionAnswering.from_pretrained(MODEL_NAME)
 model.eval()  # 切到推理模式：关闭 dropout 等训练期行为，结果更稳定
 
-logger.info(
-    "模型加载完成，模型参数量约 %.1fM", sum(p.numel() for p in model.parameters()) / 1e6
-)
+logger.info("模型加载完成，模型参数量约 %.1fM", sum(p.numel() for p in model.parameters()) / 1e6)
 
 # --------------------------------------------------------------------------- #
 # 2. 准备图片

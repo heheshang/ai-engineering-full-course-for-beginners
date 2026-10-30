@@ -31,9 +31,9 @@ from pathlib import Path
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from transformers import pipeline  # noqa: E402
+from transformers import pipeline
 
-from utils.logging_utils import get_logger  # noqa: E402
+from utils.logging_utils import get_logger
 
 # 初始化 logger
 logger = get_logger(__name__)
@@ -103,9 +103,7 @@ logger.info("摘要生成完成，全文长度=%d 字符", len(generated_text))
 
 # 把摘要部分单独取出来（原始输入以 "\n\n" 之后为模型续写部分）
 # 这里做一次健壮的切分：找不到分隔符时退化为输出全文，避免抛异常
-summary_part = (
-    generated_text.split("\n\n", 1)[1] if "\n\n" in generated_text else generated_text
-)
+summary_part = generated_text.split("\n\n", 1)[1] if "\n\n" in generated_text else generated_text
 summary_part = summary_part.strip()
 
 print(result)

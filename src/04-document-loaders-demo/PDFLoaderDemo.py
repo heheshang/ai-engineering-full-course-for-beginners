@@ -51,12 +51,10 @@
 """
 
 import json
+import sys
 from pathlib import Path
 
 from langchain_community.document_loaders import PyPDFLoader
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -83,7 +81,9 @@ print("=" * 70)
 
 loader = PyPDFLoader(str(PDF_PATH))
 pages = loader.load()
-logger.info("PDF 加载完成：文件=%s，共 %d 页 -> %d 个 Document", PDF_PATH.name, len(pages), len(pages))
+logger.info(
+    "PDF 加载完成：文件=%s，共 %d 页 -> %d 个 Document", PDF_PATH.name, len(pages), len(pages)
+)
 
 print(f"共加载 {len(pages)} 个 Document（对应 PDF 的 {len(pages)} 页）")
 print("类型：", type(pages))
@@ -137,23 +137,24 @@ print("\n" + "=" * 70)
 print("3) 方式三：自定义切分参数（chunk_size=150, chunk_overlap=30）")
 print("=" * 70)
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter  # noqa: E402
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 splitter = RecursiveCharacterTextSplitter(chunk_size=150, chunk_overlap=30)
 # 注意参数名是 text_splitter（不是 splitter）——
 # load_and_split(text_splitter=None) 的默认值是 RecursiveCharacterTextSplitter()，
 # 即默认 chunk_size=4000, chunk_overlap=200。
 small_chunks = loader.load_and_split(text_splitter=splitter)
-logger.info("自定义切分完成：%d 页 -> %d 个 chunk（chunk_size=150, chunk_overlap=30）",
-            len(pages), len(small_chunks))
+logger.info(
+    "自定义切分完成：%d 页 -> %d 个 chunk（chunk_size=150, chunk_overlap=30）",
+    len(pages),
+    len(small_chunks),
+)
 
 print(f"切分后共 {len(small_chunks)} 个 chunk")
 for i, chunk in enumerate(small_chunks):
     md = chunk.metadata
     preview = chunk.page_content.replace("\n", " ")[:70]
-    print(
-        f"[{i}] page={md.get('page')} 字符数={len(chunk.page_content):>4} | {preview}..."
-    )
+    print(f"[{i}] page={md.get('page')} 字符数={len(chunk.page_content):>4} | {preview}...")
 
 # --------------------------------------------------------------------------- #
 # 4. 方式四：自定义 loader —— 只保留需要的 metadata
@@ -175,7 +176,9 @@ slim_pages = [
 ]
 
 print("精简前第 0 页的 metadata 字段数：", len(pages[0].metadata))
-logger.info("metadata 精简：字段数 %d -> %d", len(pages[0].metadata), len(slim_pages[0]["metadata"]))
+logger.info(
+    "metadata 精简：字段数 %d -> %d", len(pages[0].metadata), len(slim_pages[0]["metadata"])
+)
 print("精简后第 0 页的 metadata：")
 print(json.dumps(slim_pages[0]["metadata"], indent=2, ensure_ascii=False))
 

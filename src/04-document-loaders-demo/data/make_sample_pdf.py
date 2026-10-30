@@ -51,9 +51,6 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-import sys
-from pathlib import Path
-
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具。
 # 注意：本文件位于 src/04-document-loaders-demo/data/ 下，比其它演示脚本深一层，
 # 所以这里要用 parents[2] 才能定位到 src 目录。
@@ -93,7 +90,7 @@ def register_cjk_font() -> str:
                 pdfmetrics.registerFont(TTFont(CJK_FONT_NAME, candidate))
                 logger.info("已注册 CJK 字体：%s（来自 %s）", CJK_FONT_NAME, candidate)
                 return CJK_FONT_NAME
-            except Exception as exc:  # noqa: BLE001 - 字体注册失败时继续尝试下一个
+            except Exception as exc:
                 logger.warning("字体注册失败：%s（%s），尝试下一个候选", candidate, exc)
                 continue
     logger.error("未找到可用的 CJK 字体，中文将无法被正确提取")
@@ -145,16 +142,14 @@ PAGES = [
         "title": "向量数据库选型要点",
         "subtitle": "第三章 · 存储层的工程考量",
         "paragraphs": [
-            "向量数据库的选型通常围绕四个维度展开：索引结构、过滤能力、"
-            "写入性能与运维成本。",
+            "向量数据库的选型通常围绕四个维度展开：索引结构、过滤能力、写入性能与运维成本。",
         ],
         "bullets": [
             "索引结构：HNSW 在召回率和查询延迟之间取得较好平衡，是目前的主流选择；"
             "IVF 适合超大规模数据，但需要重建索引。",
             "过滤能力：支持在相似度检索的同时按 metadata 过滤（如按时间、租户隔离），"
             "是很多企业场景的硬性需求。",
-            "写入性能：需要频繁更新文档时，应关注索引的增量写入能力，"
-            "避免每次全量重建。",
+            "写入性能：需要频繁更新文档时，应关注索引的增量写入能力，避免每次全量重建。",
             "运维成本：单机嵌入式数据库（如 Chroma、FAISS）部署简单；"
             "分布式方案（Milvus、Qdrant）提供高可用与水平扩展，但运维复杂度更高。",
             "混合检索：在向量检索之外叠加关键词检索（BM25），"
@@ -224,9 +219,7 @@ def build_pdf(output_path: Path) -> None:
 
     for index, page in enumerate(PAGES):
         # 每页开头写入明确的页码标记，便于核对提取结果
-        story.append(
-            Paragraph(f"第 {index + 1} 页 / 共 {total_pages} 页", marker_style)
-        )
+        story.append(Paragraph(f"第 {index + 1} 页 / 共 {total_pages} 页", marker_style))
         story.append(Spacer(1, 4 * mm))
         story.append(Paragraph(page["title"], title_style))
         story.append(Paragraph(page["subtitle"], subtitle_style))

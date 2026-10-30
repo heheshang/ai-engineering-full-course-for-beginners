@@ -33,6 +33,8 @@
 """
 
 import os
+import sys
+from pathlib import Path
 from typing import Any, Literal
 
 from dotenv import load_dotenv
@@ -41,9 +43,6 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from pydantic import BaseModel, Field
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -65,9 +64,7 @@ load_dotenv()
 # 都没有就立刻报错，避免等到请求接口时才失败、难以排查。
 api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("API_KEY")
 if not api_key:
-    raise RuntimeError(
-        "未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）"
-    )
+    raise RuntimeError("未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）")
 # 再显式写回环境变量，供 init_chat_model 按 provider 自动读取。
 os.environ["DEEPSEEK_API_KEY"] = api_key
 
@@ -155,9 +152,7 @@ class RouteQuery(BaseModel):
 
 # 4.3 构造「路由提示词」
 #     注意这里是把候选清单动态拼进去的，逻辑与旧版 from_prompts 一致。
-destinations_str = "\n".join(
-    f"{info['name']}: {info['description']}" for info in prompt_infos
-)
+destinations_str = "\n".join(f"{info['name']}: {info['description']}" for info in prompt_infos)
 
 router_prompt = ChatPromptTemplate.from_messages(
     [

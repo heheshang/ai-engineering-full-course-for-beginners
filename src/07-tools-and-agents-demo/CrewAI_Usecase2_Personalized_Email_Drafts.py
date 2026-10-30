@@ -25,6 +25,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -34,9 +35,6 @@ from crewai.rag.embeddings.factory import build_embedder
 from crewai.tools import BaseTool
 from crewai_tools import DirectoryReadTool, FileReadTool, SerperDevTool
 from dotenv import load_dotenv
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -114,7 +112,9 @@ llm = LLM(
     # 否则会被截断导致 JSON 解析失败（代理侧也有自动重试兜底）。
     max_tokens=8000,
 )
-logger.info("LLM 初始化完成：model=openai/deepseek-chat, base_url=%s, max_tokens=8000", PROXY_BASE_URL)
+logger.info(
+    "LLM 初始化完成：model=openai/deepseek-chat, base_url=%s, max_tokens=8000", PROXY_BASE_URL
+)
 
 
 # ---------------------------------------------------------------------------
@@ -377,7 +377,7 @@ logger.info("开始执行 Crew：agents=2, tasks=2, memory=ONNX MiniLM")
 
 try:
     result = crew.kickoff(inputs=inputs)
-except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+except Exception as exc:
     # 常见失败原因：本地代理未启动（连接被拒绝）、Memory 嵌入模型下载失败
     logger.error("Crew 执行失败：%s", exc)
     logger.exception("Crew 执行异常详情")

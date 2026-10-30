@@ -37,13 +37,12 @@
 """
 
 import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -65,9 +64,7 @@ load_dotenv()
 # 都没有就立刻报错，避免等到请求接口时才失败、难以排查。
 api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("API_KEY")
 if not api_key:
-    raise RuntimeError(
-        "未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）"
-    )
+    raise RuntimeError("未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）")
 # 再显式写回环境变量，供 init_chat_model 按 provider 自动读取。
 os.environ["DEEPSEEK_API_KEY"] = api_key
 
@@ -168,9 +165,7 @@ print("\033[0m" + two_step_result.content)
 # --------------------------------------------------------------------------- #
 # 输入变量名 {weaknesses} 对应第二段的输出。
 # 模板用括号包裹、多行书写，方便后续继续加内容而不破坏格式。
-template3 = (
-    "Create a personalized plan to help address and fix these weaknesses:\n{weaknesses}"
-)
+template3 = "Create a personalized plan to help address and fix these weaknesses:\n{weaknesses}"
 
 prompt3 = ChatPromptTemplate.from_template(template3)
 

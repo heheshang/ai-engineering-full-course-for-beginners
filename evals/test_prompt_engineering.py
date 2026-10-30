@@ -29,8 +29,7 @@
 from __future__ import annotations
 
 import pytest
-
-from eval_config import build_g_eval, CUSTOMER_MESSAGE, threshold
+from eval_config import CUSTOMER_MESSAGE, build_g_eval, threshold
 from sut import answer_customer_reply, check_constrained_output
 
 
@@ -50,9 +49,7 @@ def test_constrained_output_format_rules():
 
     failed = [name for name, ok in checks.items() if not ok]
     assert not failed, (
-        f"约束校验未通过，失败项：{failed}\n"
-        f"--- 实际输出 ---\n{answer}\n"
-        f"--- 校验明细 ---\n{checks}"
+        f"约束校验未通过，失败项：{failed}\n--- 实际输出 ---\n{answer}\n--- 校验明细 ---\n{checks}"
     )
 
 
@@ -194,7 +191,6 @@ def test_few_shot_style_consistency(judge):
     """
     from deepeval import assert_test
     from deepeval.test_case import LLMTestCase
-
     from sut import answer_customer_reply
 
     answer = answer_customer_reply(CUSTOMER_MESSAGE)

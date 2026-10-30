@@ -239,17 +239,19 @@ def create_vector_store(docs: list[Document], embeddings):
     # 直接用 from_texts 每次运行都会重复写入，导致向量库膨胀、检索结果出现重复。
     existing = vectorstore.get()["ids"]
     if existing:
-        logger.info("集合 '%s' 已存在（%d 条文档），跳过写入直接复用", COLLECTION_NAME, len(existing))
-        print(
-            f"Collection '{COLLECTION_NAME}' already exists ({len(existing)} docs). Reusing it."
+        logger.info(
+            "集合 '%s' 已存在（%d 条文档），跳过写入直接复用", COLLECTION_NAME, len(existing)
         )
+        print(f"Collection '{COLLECTION_NAME}' already exists ({len(existing)} docs). Reusing it.")
     else:
         vectorstore.add_documents(docs)
         logger.info("已向集合 '%s' 写入 %d 个文档", COLLECTION_NAME, len(docs))
         print(f"Added {len(docs)} documents to the collection.")
 
     total = len(vectorstore.get()["ids"])
-    logger.info("向量库就绪：集合=%s，总文档数=%d，存储目录=%s", COLLECTION_NAME, total, PERSIST_DIRECTORY)
+    logger.info(
+        "向量库就绪：集合=%s，总文档数=%d，存储目录=%s", COLLECTION_NAME, total, PERSIST_DIRECTORY
+    )
     print("Vector store created with following details:")
     print(f"- Number of texts: {total}")
     print(f"- Database location: {PERSIST_DIRECTORY}")
@@ -380,14 +382,20 @@ def main() -> None:
             if usage:
                 logger.info(
                     "[%d/%d] 回答完成，token 用量：输入=%s，输出=%s，合计=%s",
-                    idx, len(questions),
-                    usage.get("input_tokens"), usage.get("output_tokens"),
+                    idx,
+                    len(questions),
+                    usage.get("input_tokens"),
+                    usage.get("output_tokens"),
                     usage.get("total_tokens"),
                 )
             else:
-                logger.info("[%d/%d] 回答完成，长度=%d 字符（未返回 token 用量）",
-                            idx, len(questions), len(answer))
-        except Exception as exc:  # noqa: BLE001 - 演示脚本，单个问题失败不影响其余
+                logger.info(
+                    "[%d/%d] 回答完成，长度=%d 字符（未返回 token 用量）",
+                    idx,
+                    len(questions),
+                    len(answer),
+                )
+        except Exception as exc:
             # 单个问题失败不应中断整个演示：记录完整堆栈后继续下一个问题
             log_exception(logger, "[%d/%d] 回答问题失败：%s", idx, len(questions), question)
             print("Error getting answer:", exc)

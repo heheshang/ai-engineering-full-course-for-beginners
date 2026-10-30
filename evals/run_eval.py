@@ -42,8 +42,8 @@ sys.path.insert(0, str(EVALS_DIR))
 sys.path.insert(0, str(EVALS_DIR.parent / "src"))
 
 from dotenv import load_dotenv  # noqa: E402
-
 from eval_config import judge_provider, threshold  # noqa: E402
+
 from utils.logging_utils import get_logger  # noqa: E402
 
 logger = get_logger(__name__)
@@ -157,7 +157,8 @@ def main() -> int:
             *test_paths,
             "-v",
             "--tb=short",
-            "-p", "no:randomly",
+            "-p",
+            "no:randomly",
         ]
     )
 

@@ -1,5 +1,7 @@
 import os
+import sys
 from datetime import datetime
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
@@ -18,9 +20,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.sqlite import insert  # 关键：必须用这个 insert
 
-import sys
-from pathlib import Path
-
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -33,9 +32,7 @@ logger = get_logger(__name__)
 load_dotenv()
 api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("API_KEY")
 if not api_key:
-    raise RuntimeError(
-        "未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）"
-    )
+    raise RuntimeError("未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）")
 os.environ["DEEPSEEK_API_KEY"] = api_key
 
 # 1. 初始化模型
@@ -79,10 +76,7 @@ observations = [
 #     )
 with engine.begin() as conn:
     stmt = insert(stocks).values(
-        [
-            {"obs_id": o[0], "stock_ticker": o[1], "price": o[2], "date": o[3]}
-            for o in observations
-        ]
+        [{"obs_id": o[0], "stock_ticker": o[1], "price": o[2], "date": o[3]} for o in observations]
     )
     stmt = stmt.on_conflict_do_nothing(index_elements=["obs_id"])
     conn.execute(stmt)
@@ -119,7 +113,7 @@ config = {"recursion_limit": 3}
 logger.info("开始执行 SQL Agent 查询：%s", question)
 try:
     result = agent.invoke({"messages": [{"role": "user", "content": question}]})
-except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+except Exception as exc:
     # 常见失败原因：recursion_limit 太小导致步骤不够、模型生成了非法 SQL
     logger.error("SQL Agent 查询失败：%s", exc)
     logger.exception("SQL Agent 异常详情")

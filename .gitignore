@@ -9,6 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Ruff 缓存
+.ruff_cache
+
 # Environment & local data
 .env
 chroma_db/

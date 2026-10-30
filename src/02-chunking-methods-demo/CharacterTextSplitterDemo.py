@@ -23,9 +23,9 @@ from pathlib import Path
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from langchain_text_splitters import CharacterTextSplitter  # noqa: E402
+from langchain_text_splitters import CharacterTextSplitter
 
-from utils.logging_utils import get_logger  # noqa: E402
+from utils.logging_utils import get_logger
 
 # 初始化 logger：日志同时输出到控制台和 logs/course.log
 logger = get_logger(__name__)
@@ -86,8 +86,10 @@ chunks = splitter.split_text(sample_text)
 lengths = [len(c) for c in chunks]
 logger.info(
     "切分完成：原文 %d 字符 -> %d 个片段，最短 %d 字符，最长 %d 字符，平均 %.1f 字符",
-    len(sample_text), len(chunks),
-    min(lengths) if lengths else 0, max(lengths) if lengths else 0,
+    len(sample_text),
+    len(chunks),
+    min(lengths) if lengths else 0,
+    max(lengths) if lengths else 0,
     (sum(lengths) / len(lengths)) if lengths else 0.0,
 )
 # 超过 chunk_size 的片段说明无法在分隔符处断开，属于「超长块」，需要重点关注

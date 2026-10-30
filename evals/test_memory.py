@@ -38,7 +38,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from eval_config import build_g_eval, threshold  # noqa: E402
+from eval_config import build_g_eval, threshold
 
 
 def _require_key() -> str:
@@ -131,6 +131,7 @@ def test_memory_recalls_previous_turn(judge, memory_agent):
         name="跨轮记忆召回",
         evaluation_steps=[
             "用户在第一轮提供了订单号 A12345。",
+            f"模型在第一轮的回答是：{turn1}",
             f"模型在第二轮的回答是：{turn2}",
             "检查回答中是否正确提到了订单号 A12345。",
             "若回答没有提到该订单号，或给出了错误的号码，判为不符合。",
@@ -155,7 +156,6 @@ def test_memory_uses_tool_with_recalled_id(judge, memory_agent):
     from deepeval import assert_test
     from deepeval.metrics import ToolCorrectnessMetric
     from deepeval.test_case import LLMTestCase, ToolCall
-
     from langchain_core.messages import HumanMessage
 
     thread_id = "eval-memory-tool"

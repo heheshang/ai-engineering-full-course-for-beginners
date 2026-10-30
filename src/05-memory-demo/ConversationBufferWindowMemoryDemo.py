@@ -36,15 +36,12 @@ LangChain 1.x 中的现状
 """
 
 import os
-from collections.abc import Sequence
+import sys
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import BaseMessage, RemoveMessage, trim_messages
-
-import sys
-from pathlib import Path
+from langchain_core.messages import BaseMessage, RemoveMessage
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -96,9 +93,9 @@ logger.info("LLM 初始化完成：model=deepseek-chat, temperature=0")
 # =========================================================================== #
 # 路线 A（推荐）：create_agent + checkpointer + 窗口裁剪中间件
 # =========================================================================== #
-from langchain.agents import create_agent  # noqa: E402
-from langchain.agents.middleware import before_model  # noqa: E402
-from langgraph.checkpoint.memory import InMemorySaver  # noqa: E402
+from langchain.agents import create_agent
+from langchain.agents.middleware import before_model
+from langgraph.checkpoint.memory import InMemorySaver
 
 # 窗口大小：保留最近 k 轮对话（一轮 = Human + AI 两条消息）
 K = 2
@@ -130,7 +127,9 @@ def trim_message_window(state: dict[str, Any], runtime: Any) -> dict[str, Any] |
     removed = messages[:-keep]
     logger.info(
         "触发窗口裁剪：当前 %d 条消息超过上限 %d，删除最早的 %d 条",
-        len(messages), keep, len(removed),
+        len(messages),
+        keep,
+        len(removed),
     )
     return {"messages": [RemoveMessage(id=m.id) for m in removed]}
 
@@ -145,8 +144,12 @@ agent = create_agent(
 
 # 同一个 thread_id = 同一段会话
 CONFIG = {"configurable": {"thread_id": "mala-window-1"}}
-logger.info("会话配置就绪：thread_id=%s，窗口大小 K=%d 轮（最多 %d 条消息）",
-             CONFIG["configurable"]["thread_id"], K, K * 2)
+logger.info(
+    "会话配置就绪：thread_id=%s，窗口大小 K=%d 轮（最多 %d 条消息）",
+    CONFIG["configurable"]["thread_id"],
+    K,
+    K * 2,
+)
 
 
 def ask(text: str) -> None:
@@ -183,8 +186,10 @@ if len(window_messages) > K * 2:
 for message in window_messages:
     role = "Human" if message.type == "human" else "AI"
     print(f"[{role}] {message.content}")
-logger.info("注意：最后的提问「what is my name?」发生在裁剪之后，"
-            "名字所在的第 1 轮已被移出窗口，模型可能已经「忘记」")
+logger.info(
+    "注意：最后的提问「what is my name?」发生在裁剪之后，"
+    "名字所在的第 1 轮已被移出窗口，模型可能已经「忘记」"
+)
 
 # --------------------------------------------------------------------------- #
 # 进阶：按 token 数而不是轮数裁剪
@@ -207,7 +212,6 @@ logger.info("注意：最后的提问「what is my name?」发生在裁剪之后
 #
 # 或者直接用官方现成的 SummarizationMiddleware（超限时自动总结历史）：
 #
-from langchain.agents.middleware import SummarizationMiddleware
 #
 # agent = create_agent(
 #     model=llm,

@@ -108,10 +108,8 @@ logger.info("Agent 创建完成，系统提示词长度=%d 字符", len(system_p
 # --------------------------------------------------------------------------- #
 logger.info("开始调用 Agent（思维链提示）")
 try:
-    result = agent.invoke(
-        {"messages": [HumanMessage(content="Please respond to my message.")]}
-    )
-except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+    result = agent.invoke({"messages": [HumanMessage(content="Please respond to my message.")]})
+except Exception:
     log_exception(logger, "Agent 调用失败")
     raise
 
@@ -124,7 +122,9 @@ usage = getattr(result["messages"][-1], "usage_metadata", None)
 if usage:
     logger.info(
         "token 用量：输入=%s，输出=%s，合计=%s",
-        usage.get("input_tokens"), usage.get("output_tokens"), usage.get("total_tokens"),
+        usage.get("input_tokens"),
+        usage.get("output_tokens"),
+        usage.get("total_tokens"),
     )
 
 print(result["messages"][-1].content)

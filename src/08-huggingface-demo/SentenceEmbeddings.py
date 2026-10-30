@@ -32,10 +32,10 @@ from pathlib import Path
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sentence_transformers import SentenceTransformer, util  # noqa: E402
-from transformers.utils import logging as hf_logging  # noqa: E402
+from sentence_transformers import SentenceTransformer, util
+from transformers.utils import logging as hf_logging
 
-from utils.logging_utils import get_logger  # noqa: E402
+from utils.logging_utils import get_logger
 
 # 初始化 logger
 logger = get_logger(__name__)
@@ -115,7 +115,7 @@ for i in range(len(sentences1)):
         sentences2[i],
         score,
     )
-    print("{} \t\t {} \t\t Score: {:.4f}".format(sentences1[i], sentences2[i], score))
+    print(f"{sentences1[i]} \t\t {sentences2[i]} \t\t Score: {score:.4f}")
 
 # 解读要点：
 #   - 第 1 对（猫在户外 / 狗在花园里）主题都是"动物 + 户外活动"，相似度较高；

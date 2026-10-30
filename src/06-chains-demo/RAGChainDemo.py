@@ -49,20 +49,17 @@ RAG（Retrieval-Augmented Generation，检索增强生成）是让模型基于
 
 import json
 import os
-from logging import debug
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_chroma import Chroma
 from langchain_core.messages import messages_to_dict  # noqa: F401  （备用，见文末「其他常用取数方式」）
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -84,9 +81,7 @@ load_dotenv()
 # 都没有就立刻报错，避免等到请求接口时才失败、难以排查。
 api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("API_KEY")
 if not api_key:
-    raise RuntimeError(
-        "未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）"
-    )
+    raise RuntimeError("未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）")
 # 再显式写回环境变量，供 init_chat_model 按 provider 自动读取。
 os.environ["DEEPSEEK_API_KEY"] = api_key
 
@@ -161,9 +156,7 @@ def ollama_embedding_model() -> str:
 
     默认 qwen3-embedding:4b，可通过 .env 中的 OLLAMA_EMBED_MODEL 覆盖。
     """
-    return os.getenv("OLLAMA_EMBED_MODEL", "qwen3-embedding:4b") or (
-        "qwen3-embedding:4b"
-    )
+    return os.getenv("OLLAMA_EMBED_MODEL", "qwen3-embedding:4b") or ("qwen3-embedding:4b")
 
 
 # OpenAIEmbeddings 通过 base_url 指向本地 Ollama，实现「离线、不花钱」的 embedding。
@@ -207,8 +200,9 @@ logger.info("向量库建库完成：共写入 %d 个 chunk", len(splits))
 # 想用「 MMR（最大边际相关）」去重多样性：
 #   search_type="mmr"
 retriever = vectorstore.as_retriever()
-logger.info("检索器创建完成：search_type=%s, k=%s",
-             retriever.search_type, retriever.search_kwargs.get("k"))
+logger.info(
+    "检索器创建完成：search_type=%s, k=%s", retriever.search_type, retriever.search_kwargs.get("k")
+)
 
 # --------------------------------------------------------------------------- #
 # 7. 编写 RAG 提示词模板
@@ -366,9 +360,7 @@ print(
 # input_tokens（输入消耗）、output_tokens（输出消耗）、total_tokens（合计），
 # 以及细分的 reasoning tokens（推理模型思考过程消耗的 token）。
 usage_metadata = getattr(result, "usage_metadata", None)
-print(
-    f"\nusage_metadata:\n{json.dumps(usage_metadata, indent=2, ensure_ascii=False, default=str)}"
-)
+print(f"\nusage_metadata:\n{json.dumps(usage_metadata, indent=2, ensure_ascii=False, default=str)}")
 if usage_metadata:
     logger.info(
         "token 用量：输入=%s，输出=%s，合计=%s",
@@ -392,21 +384,11 @@ print("\n" + "=" * 70)
 print("3) 快速取用：常用字段速查")
 print("=" * 70)
 print(f"最终答案      : {result.content}")
-print(
-    f"实际模型名    : {response_metadata.get('model_name') if response_metadata else None}"
-)
-print(
-    f"结束原因      : {response_metadata.get('finish_reason') if response_metadata else None}"
-)
-print(
-    f"总 token 数   : {usage_metadata.get('total_tokens') if usage_metadata else None}"
-)
-print(
-    f"输入 token 数 : {usage_metadata.get('input_tokens') if usage_metadata else None}"
-)
-print(
-    f"输出 token 数 : {usage_metadata.get('output_tokens') if usage_metadata else None}"
-)
+print(f"实际模型名    : {response_metadata.get('model_name') if response_metadata else None}")
+print(f"结束原因      : {response_metadata.get('finish_reason') if response_metadata else None}")
+print(f"总 token 数   : {usage_metadata.get('total_tokens') if usage_metadata else None}")
+print(f"输入 token 数 : {usage_metadata.get('input_tokens') if usage_metadata else None}")
+print(f"输出 token 数 : {usage_metadata.get('output_tokens') if usage_metadata else None}")
 
 # --------------------------------------------------------------------------- #
 # 附：其他常用取数方式

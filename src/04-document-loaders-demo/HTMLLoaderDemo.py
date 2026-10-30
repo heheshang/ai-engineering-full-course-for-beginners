@@ -37,12 +37,10 @@
 """
 
 import json
+import sys
 from pathlib import Path
 
 from langchain_community.document_loaders import BSHTMLLoader
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -87,8 +85,10 @@ print(docs[0].page_content[:500])
 
 # 对比：不传 separator 会怎样（文本粘连）
 plain_docs = BSHTMLLoader(file_path=str(HTML_PATH)).load()
-logger.info("对比：默认 separator='' 的正文长度=%d 字符（文本直接粘连，可读性差）",
-             len(plain_docs[0].page_content))
+logger.info(
+    "对比：默认 separator='' 的正文长度=%d 字符（文本直接粘连，可读性差）",
+    len(plain_docs[0].page_content),
+)
 print("\n--- 对比：默认 get_text_separator='' 的效果（前 200 字符）---")
 print(plain_docs[0].page_content[:200])
 
@@ -106,8 +106,8 @@ print("\n" + "=" * 70)
 print("2) 方式二：自定义 —— 按语义标签切成多个 Document")
 print("=" * 70)
 
-from bs4 import BeautifulSoup  # noqa: E402
-from langchain_core.documents import Document  # noqa: E402
+from bs4 import BeautifulSoup
+from langchain_core.documents import Document
 
 html_text = HTML_PATH.read_text(encoding="utf-8")
 soup = BeautifulSoup(html_text, "html.parser")
@@ -152,7 +152,7 @@ print("\n" + "=" * 70)
 print("3) 方式三：HTML 表格 -> DataFrame")
 print("=" * 70)
 
-import pandas as pd  # noqa: E402
+import pandas as pd
 
 tables = pd.read_html(HTML_PATH)
 logger.info("从 HTML 中解析出 %d 个表格", len(tables))
@@ -178,7 +178,11 @@ official_chars = len(docs[0].page_content)
 custom_chars = sum(len(d.page_content) for d in blocks)
 logger.info(
     "三种方式对比：官方=%d 文档/%d 字符，自定义=%d 文档/%d 字符，Markdown 表格=%d 字符",
-    len(docs), official_chars, len(blocks), custom_chars, len(markdown_table),
+    len(docs),
+    official_chars,
+    len(blocks),
+    custom_chars,
+    len(markdown_table),
 )
 
 print(f"{'方式':<28}{'Document 数':<14}{'总字符数':<12}")

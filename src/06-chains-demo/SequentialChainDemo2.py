@@ -76,9 +76,7 @@ load_dotenv()
 # 都没有就立刻报错，避免等到请求接口时才失败、难以排查。
 api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("API_KEY")
 if not api_key:
-    raise RuntimeError(
-        "未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）"
-    )
+    raise RuntimeError("未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）")
 # 再显式写回环境变量，供 init_chat_model 按 provider 自动读取。
 os.environ["DEEPSEEK_API_KEY"] = api_key
 
@@ -138,9 +136,7 @@ question_prompt = ChatPromptTemplate.from_messages(
 
 # question_chain 的输入是 {"topic": "..."}，输出是 str。
 question_chain = question_prompt | llm | StrOutputParser()
-logger.info(
-    "第二条链构建完成：围绕主题生成问题，输入变量=%s", question_prompt.input_variables
-)
+logger.info("第二条链构建完成：围绕主题生成问题，输入变量=%s", question_prompt.input_variables)
 
 # --------------------------------------------------------------------------- #
 # 4. 组装完整链：串联 + 并行

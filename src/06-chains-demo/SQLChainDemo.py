@@ -32,16 +32,15 @@
 """
 
 import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
+from langchain_community.utilities import SQLDatabase
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
-from langchain_community.utilities import SQLDatabase
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -63,9 +62,7 @@ load_dotenv()
 # 都没有就立刻报错，避免等到请求接口时才失败、难以排查。
 api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("API_KEY")
 if not api_key:
-    raise RuntimeError(
-        "未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）"
-    )
+    raise RuntimeError("未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）")
 # 再显式写回环境变量，供 init_chat_model 按 provider 自动读取。
 os.environ["DEEPSEEK_API_KEY"] = api_key
 
@@ -118,17 +115,11 @@ def clean_sql(raw_sql: str) -> str:
     text = raw_sql.strip()
     # 去掉 markdown 代码围栏（可能是 ```sql 或 ```）
     if "```" in text:
-        text = (
-            text.split("```")[1] if text.count("```") >= 2 else text.replace("```", "")
-        )
+        text = text.split("```")[1] if text.count("```") >= 2 else text.replace("```", "")
         # 去掉 ``` 后面可能带的语言标识（如 sql）
         if "\n" in text:
             first, rest = text.split("\n", 1)
-            text = (
-                rest
-                if first.strip().lower() in {"sql", "sqlite", "postgresql"}
-                else text
-            )
+            text = rest if first.strip().lower() in {"sql", "sqlite", "postgresql"} else text
     text = text.strip()
     # 只保留第一条语句
     text = text.split(";")[0]

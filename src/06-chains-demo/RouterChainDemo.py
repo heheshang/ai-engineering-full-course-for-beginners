@@ -49,12 +49,12 @@ from pathlib import Path
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from dotenv import load_dotenv  # noqa: E402
-from langchain.chat_models import init_chat_model  # noqa: E402
-from langchain_core.output_parsers import StrOutputParser  # noqa: E402
-from langchain_core.prompts import PromptTemplate  # noqa: E402
+from dotenv import load_dotenv
+from langchain.chat_models import init_chat_model
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
 
-from utils.logging_utils import get_logger  # noqa: E402
+from utils.logging_utils import get_logger
 
 # 初始化 logger：日志同时输出到控制台和 logs/course.log
 logger = get_logger(__name__)
@@ -70,9 +70,7 @@ load_dotenv()
 # 都没有就立刻报错，避免等到请求接口时才失败、难以排查。
 api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("API_KEY")
 if not api_key:
-    raise RuntimeError(
-        "未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）"
-    )
+    raise RuntimeError("未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）")
 # 再显式写回环境变量，供 init_chat_model 按 provider 自动读取。
 os.environ["DEEPSEEK_API_KEY"] = api_key
 logger.info("已加载 API Key（来源：DEEPSEEK_API_KEY 或 API_KEY）")
@@ -180,15 +178,14 @@ def route_chain(input_text: str):
     if "science" in category:
         logger.info("路由结果 -> science_chain（科学专家）")
         return science_chain
-    elif "history" in category:
+    if "history" in category:
         logger.info("路由结果 -> history_chain（历史专家）")
         return history_chain
-    else:
-        # 兜底分支：模型输出无法识别时一律走数学链。
-        # 生产环境更稳妥的做法是再加一个 "general"（通用回答）分支，
-        # 避免把非数学问题硬塞给数学专家。
-        logger.info("路由结果 -> math_chain（数学专家，兜底分支）")
-        return math_chain
+    # 兜底分支：模型输出无法识别时一律走数学链。
+    # 生产环境更稳妥的做法是再加一个 "general"（通用回答）分支，
+    # 避免把非数学问题硬塞给数学专家。
+    logger.info("路由结果 -> math_chain（数学专家，兜底分支）")
+    return math_chain
 
 
 # --------------------------------------------------------------------------- #
@@ -196,9 +193,9 @@ def route_chain(input_text: str):
 # --------------------------------------------------------------------------- #
 # 三个测试问题分别覆盖三条分支，方便观察路由是否生效。
 questions = [
-    "What causes photosynthesis?",          # 期望 -> Science
+    "What causes photosynthesis?",  # 期望 -> Science
     "Who was the first president of the United States?",  # 期望 -> History
-    "What is the square root of 100?",       # 期望 -> Math
+    "What is the square root of 100?",  # 期望 -> Math
 ]
 
 logger.info("开始路由链演示，共 %d 个问题", len(questions))

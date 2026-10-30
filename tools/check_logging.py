@@ -36,7 +36,6 @@ def check_file(path: Path) -> list[str]:
     """
     problems: list[str] = []
     text = path.read_text(encoding="utf-8")
-    rel = path.relative_to(ROOT)
 
     # --- 5. 语法检查 ---
     try:

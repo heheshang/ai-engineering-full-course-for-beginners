@@ -55,12 +55,10 @@ LangChain 1.x 中的现状
 """
 
 import os
-
-from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
-
 import sys
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -134,7 +132,8 @@ summarization = SummarizationMiddleware(
 )
 logger.info(
     "摘要中间件配置完成：触发条件=token 数 > %d，总结后保留最近 %d 条原文",
-    MAX_TOKEN_LIMIT, KEEP_MESSAGES,
+    MAX_TOKEN_LIMIT,
+    KEEP_MESSAGES,
 )
 
 agent = create_agent(
@@ -166,9 +165,7 @@ def ask(text: str) -> None:
 
 
 print("=" * 70)
-print(
-    f"路线 A：create_agent + SummarizationMiddleware（trigger=tokens>{MAX_TOKEN_LIMIT}）"
-)
+print(f"路线 A：create_agent + SummarizationMiddleware（trigger=tokens>{MAX_TOKEN_LIMIT}）")
 print("=" * 70)
 
 ask("Hi, my name is Mala")
@@ -186,8 +183,10 @@ for message in state_messages:
     role = message.type
     print(f"[{role}] {str(message.content)[:200]}")
     logger.debug("消息类型=%s, 长度=%d", role, len(str(message.content)))
-logger.info("摘要记忆的关键点：旧消息被压缩进摘要而非丢弃，因此语义仍然保留，"
-            "但细节会丢失；最后一句提问中的名字依然能被模型想起来")
+logger.info(
+    "摘要记忆的关键点：旧消息被压缩进摘要而非丢弃，因此语义仍然保留，"
+    "但细节会丢失；最后一句提问中的名字依然能被模型想起来"
+)
 
 # --------------------------------------------------------------------------- #
 # 进阶：摘要 + 窗口 组合

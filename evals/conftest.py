@@ -15,7 +15,7 @@ import pytest
 # 让同目录的 eval_config / sut 可被直接 import
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from eval_config import (  # noqa: E402
+from eval_config import (
     build_judge_model,
     llm_judge_available,
     threshold,
@@ -64,15 +64,11 @@ def rag_agent(retriever):
 
 def pytest_configure(config: pytest.Config) -> None:
     """注册自定义标记。"""
-    config.addinivalue_line(
-        "markers", "llm_judge: 需要 LLM 裁判模型的用例（跳过 API Key 检查）"
-    )
+    config.addinivalue_line("markers", "llm_judge: 需要 LLM 裁判模型的用例（跳过 API Key 检查）")
     config.addinivalue_line("markers", "slow: 耗时较长的用例")
 
 
-def pytest_collection_modifyitems(
-    config: pytest.Config, items: list[pytest.Item]
-) -> None:
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """没有裁判模型凭据时，自动跳过标记了 ``llm_judge`` 的用例。
 
     这样在 CI 或本地没配 Key 的环境里，
@@ -81,7 +77,9 @@ def pytest_collection_modifyitems(
     if llm_judge_available():
         return
 
-    skip = pytest.mark.skip(reason="未配置裁判模型凭据（设 DEEPSEEK_API_KEY 或 EVAL_JUDGE_PROVIDER=ollama）")
+    skip = pytest.mark.skip(
+        reason="未配置裁判模型凭据（设 DEEPSEEK_API_KEY 或 EVAL_JUDGE_PROVIDER=ollama）"
+    )
     for item in items:
         if "llm_judge" in item.keywords:
             item.add_marker(skip)

@@ -36,6 +36,7 @@ SERPER_API_KEY=...
 | `src/utils/` | 公共工具（统一日志 + DeepSeek 兼容代理） |
 | `evals/` | DeepEval 评测套件（RAG / Agent / 提示 / 链 / 记忆） |
 | `tools/` | 开发辅助脚本（批量接入日志、静态检查） |
+| `Makefile` | 常用命令封装（格式化 / 静态检查 / 测试） |
 
 ## 演示清单
 
@@ -168,6 +169,57 @@ python tools/add_logging.py src/xx-demo/NewDemo.py
 # 静态检查：logger 是否定义、log_exception 是否导入、sys.path 深度是否正确
 python tools/check_logging.py
 ```
+
+## 代码格式与静态检查（Ruff）
+
+项目统一使用 [Ruff](https://docs.astral.sh/ruff/) 做格式化和静态检查，
+配置集中在 `pyproject.toml` 的 `[tool.ruff*]` 段落，全项目共用同一份规则。
+
+### 快速使用
+
+```bash
+# 安装（含 dev 依赖组：ruff）
+uv sync
+
+# 统一格式化全项目
+uv run ruff format .
+
+# 静态检查（自动修复可修复项）
+uv run ruff check --fix .
+
+# 只检查不修改（CI 用）
+uv run ruff format --check --diff .
+uv run ruff check .
+```
+
+也可以用 `Makefile` 里的封装（`make help` 查看全部）：
+
+| 命令 | 作用 |
+| --- | --- |
+| `make fmt` | 统一格式化全项目 |
+| `make fmt-check` | 检查格式是否符合规范（不修改） |
+| `make lint` | 静态检查 |
+| `make lint-fix` | 静态检查并自动修复 |
+| `make check` | CI 用：格式 + 静态检查 |
+| `make test-offline` | 只跑离线评测用例（无需 API Key） |
+
+### 规则约定
+
+* **行宽 100**，`E501` 交给 formatter 处理，避免两套规则互相打架。
+* **启用规则集**：`E4`/`E7`/`E9`、`F`、`I`（import 排序）、`UP`（语法现代化）、
+  `B`、`C4`、`SIM`、`PIE`、`PT`（pytest 风格）、`RET`、`RUF`。
+* **中文项目豁免**：`RUF001/002/003`（易混淆全角字符）已忽略，
+  注释与文档全部为中文，误报率极高。
+* **演示脚本豁免**：`src/**/*Demo.py` 允许 `E402`（import 放在讲解注释之后，
+  属于刻意的教学编排）。
+* **测试豁免**：`evals/conftest.py` 允许 `E402`（需要先改 `sys.path` 再 import
+  同目录模块）。* **parametrize 参数名**统一用 `"a,b"` 字符串形式。
+
+### 编辑器集成
+
+在 VS Code / Cursor 中安装 `Ruff` 扩展后，设置 `ruff.format.args` 为
+`--config pyproject.toml`，保存文件即自动格式化；`ruff.lint.args` 同样指向
+`pyproject.toml` 即可复用项目规则。
 
 ## DeepSeek 兼容代理
 

@@ -30,14 +30,13 @@
 
 import math
 import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
 from langchain_core.tools import tool
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -57,7 +56,7 @@ load_dotenv()
 api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("API_KEY")
 if not api_key:
     raise RuntimeError("未找到 API Key，请在 .env 中设置 OPENAI_API_KEY（或 API_KEY）")
-os.environ["DEEPSEEK_API_KEY"] = api_key    
+os.environ["DEEPSEEK_API_KEY"] = api_key
 
 # --------------------------------------------------------------------------- #
 # 1. 初始化 LLM

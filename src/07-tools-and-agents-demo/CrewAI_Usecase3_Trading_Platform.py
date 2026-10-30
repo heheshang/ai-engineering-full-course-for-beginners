@@ -13,15 +13,14 @@
 """
 
 import os
+import sys
+from pathlib import Path
+from typing import Any
 
 from crewai import LLM, Agent, Crew, Process, Task
 from crewai.tools import BaseTool
 from crewai_tools import ScrapeWebsiteTool, SerperDevTool
 from dotenv import load_dotenv
-from typing import Any
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -64,7 +63,9 @@ llm = LLM(
     # 截断会导致 JSON 解析失败。代理侧也有自动重试兜底。
     max_tokens=8000,
 )
-logger.info("LLM 初始化完成：model=openai/deepseek-chat, base_url=%s, max_tokens=8000", PROXY_BASE_URL)
+logger.info(
+    "LLM 初始化完成：model=openai/deepseek-chat, base_url=%s, max_tokens=8000", PROXY_BASE_URL
+)
 
 
 # ---------------------------------------------------------------------------
@@ -198,8 +199,7 @@ trading_strategy_agent = Agent(
 # 职责边界：基于已批准的策略，分析时机、价格、执行细节等落地问题。
 execution_agent = Agent(
     role="Trade Advisor",
-    goal="Suggest optimal trade execution strategies "
-    "based on approved trading strategies.",
+    goal="Suggest optimal trade execution strategies based on approved trading strategies.",
     backstory="This agent specializes in analyzing the timing, price, "
     "and logistical details of potential trades. By evaluating "
     "these factors, it provides well-founded suggestions for "
@@ -217,8 +217,7 @@ execution_agent = Agent(
 # 放在最后一位，因为风控结论需要基于前序所有输出。
 risk_management_agent = Agent(
     role="Risk Advisor",
-    goal="Evaluate and provide insights on the risks "
-    "associated with potential trading activities.",
+    goal="Evaluate and provide insights on the risks associated with potential trading activities.",
     backstory="Armed with a deep understanding of risk assessment models "
     "and market dynamics, this agent scrutinizes the potential "
     "risks of proposed trades. It offers a detailed analysis of "
@@ -280,8 +279,7 @@ execution_planning_task = Task(
         "considering current market conditions and optimal pricing."
     ),
     expected_output=(
-        "Detailed execution plans suggesting how and when to "
-        "execute trades for {stock_selection}."
+        "Detailed execution plans suggesting how and when to execute trades for {stock_selection}."
     ),
     agent=execution_agent,
 )
@@ -346,7 +344,7 @@ logger.info("Crew 输入参数：%s", financial_trading_inputs)
 logger.info("开始执行 hierarchical 流程（Crew 会自动委派任务给合适的 Agent）")
 try:
     result = financial_trading_crew.kickoff(inputs=financial_trading_inputs)
-except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+except Exception as exc:
     # 常见失败原因：本地代理未启动、模型超时、委派过程超过 max_tokens 限制
     logger.error("Crew 执行失败：%s", exc)
     logger.exception("Crew 执行异常详情")

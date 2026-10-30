@@ -170,8 +170,7 @@ def build_judge_model():
         return OllamaModel(model=model_name, base_url=base_url)
 
     raise RuntimeError(
-        f"不支持的 EVAL_JUDGE_PROVIDER={provider!r}，"
-        "可选值：deepeval / openai / proxy / ollama"
+        f"不支持的 EVAL_JUDGE_PROVIDER={provider!r}，可选值：deepeval / openai / proxy / ollama"
     )
 
 
@@ -312,10 +311,10 @@ CONSTRAINED_OUTPUT_RULES = {
 
 
 __all__ = [
+    "CONSTRAINED_OUTPUT_RULES",
+    "CUSTOMER_MESSAGE",
     "DEFAULT_THRESHOLD",
     "PROJECT_ROOT",
-    "CUSTOMER_MESSAGE",
-    "CONSTRAINED_OUTPUT_RULES",
     "RAG_CONTEXT",
     "RAG_GOLDEN_ANSWERS",
     "build_g_eval",

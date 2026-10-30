@@ -30,13 +30,12 @@ LangChain 1.x 中的现状
 """
 
 import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -54,9 +53,7 @@ load_dotenv()
 
 api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("API_KEY")
 if not api_key:
-    raise RuntimeError(
-        "未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）"
-    )
+    raise RuntimeError("未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）")
 os.environ["DEEPSEEK_API_KEY"] = api_key
 
 # --------------------------------------------------------------------------- #
@@ -141,8 +138,9 @@ for chunk in chain.stream({"product": "rain boots"}):
     stream_parts.append(chunk.content)
     print(chunk.content, end="", flush=True)
 print()
-logger.info("流式调用完成，共 %d 个片段，拼接后 %d 字符",
-             len(stream_parts), len("".join(stream_parts)))
+logger.info(
+    "流式调用完成，共 %d 个片段，拼接后 %d 字符", len(stream_parts), len("".join(stream_parts))
+)
 
 # 4.3 想要结构化输出（返回 Pydantic 对象而不是字符串）
 #

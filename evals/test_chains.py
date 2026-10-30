@@ -34,7 +34,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from eval_config import build_g_eval, threshold  # noqa: E402
+from eval_config import build_g_eval, threshold
 
 
 def _require_key() -> str:
@@ -101,9 +101,7 @@ PhD level understanding of Physics. Here is the question\n{input}"""
         destination: DestinationName = Field(description="选中的分支名称")
         next_inputs: str = Field(description="传给该分支的问题，可对原问题做改写")
 
-    destinations_str = "\n".join(
-        f"{info['name']}: {info['description']}" for info in prompt_infos
-    )
+    destinations_str = "\n".join(f"{info['name']}: {info['description']}" for info in prompt_infos)
 
     router_prompt = ChatPromptTemplate.from_messages(
         [
@@ -127,9 +125,7 @@ Only respond with the destination name and the (possibly revised) input.""",
     return (
         RunnablePassthrough.assign(route=router_chain)
         | RunnableLambda(lambda x: (x["route"].destination, x["route"].next_inputs))
-        | RunnableLambda(
-            lambda x: destination_chains[x[0]].invoke({"input": x[1]})
-        )
+        | RunnableLambda(lambda x: destination_chains[x[0]].invoke({"input": x[1]}))
     ), router_chain
 
 
@@ -292,7 +288,9 @@ def test_sequential_chain_preserves_topic(judge):
         ],
     )
 
-    test_case = LLMTestCase(input="Generate 3 questions about a random topic", actual_output=questions)
+    test_case = LLMTestCase(
+        input="Generate 3 questions about a random topic", actual_output=questions
+    )
     assert_test(test_case=test_case, metrics=[metric])
 
 
@@ -325,9 +323,7 @@ def test_sequential_chain_two_stage(judge):
         "and for mentoring two junior developers."
     )
 
-    chain = (summary_prompt | llm | StrOutputParser()) | (
-        weakness_prompt | llm | StrOutputParser()
-    )
+    chain = (summary_prompt | llm | StrOutputParser()) | (weakness_prompt | llm | StrOutputParser())
     weaknesses = chain.invoke({"review": review})
 
     assert weaknesses.strip(), "未生成弱点列表"
@@ -346,7 +342,9 @@ def test_sequential_chain_two_stage(judge):
         ],
     )
 
-    test_case = LLMTestCase(input="Identify key weaknesses from this review", actual_output=weaknesses)
+    test_case = LLMTestCase(
+        input="Identify key weaknesses from this review", actual_output=weaknesses
+    )
     assert_test(test_case=test_case, metrics=[metric])
 
 
@@ -366,10 +364,10 @@ def test_sql_chain_generates_executable_sql(judge):
     2. LLM：生成的 SQL 语法与逻辑是否正确。
     """
     from langchain.chat_models import init_chat_model
+    from langchain_community.utilities import SQLDatabase
     from langchain_core.output_parsers import StrOutputParser
     from langchain_core.prompts import ChatPromptTemplate
     from langchain_core.runnables import RunnablePassthrough
-    from langchain_community.utilities import SQLDatabase
     from sqlalchemy import create_engine
 
     api_key = _require_key()
@@ -399,9 +397,12 @@ SQL result: {context}
 Answer:"""
     )
 
-    sql_chain = RunnablePassthrough.assign(
-        schema=lambda _: db.get_table_info()
-    ) | sql_prompt | llm | StrOutputParser()
+    sql_chain = (
+        RunnablePassthrough.assign(schema=lambda _: db.get_table_info())
+        | sql_prompt
+        | llm
+        | StrOutputParser()
+    )
 
     full_chain = (
         RunnablePassthrough.assign(sql=sql_chain)

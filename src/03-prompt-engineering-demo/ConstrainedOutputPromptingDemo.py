@@ -49,6 +49,8 @@
 
 import json
 import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
@@ -60,9 +62,6 @@ from langchain_core.messages import (
 )
 from langchain_core.prompts import PromptTemplate
 from langchain_deepseek import ChatDeepSeek
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -141,8 +140,10 @@ constrained_agent = create_agent(
         content=constrained_prompt.format(customer_message=customer_message)
     ),
 )
-logger.info("Agent 创建完成，约束模板渲染后长度=%d 字符",
-             len(constrained_prompt.format(customer_message=customer_message)))
+logger.info(
+    "Agent 创建完成，约束模板渲染后长度=%d 字符",
+    len(constrained_prompt.format(customer_message=customer_message)),
+)
 
 # --------------------------------------------------------------------------- #
 # 4. 调用 Agent
@@ -164,7 +165,7 @@ try:
             ]
         }
     )
-except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+except Exception:
     log_exception(logger, "Agent 调用失败")
     raise
 
@@ -173,7 +174,9 @@ usage = getattr(result["messages"][-1], "usage_metadata", None)
 if usage:
     logger.info(
         "token 用量：输入=%s，输出=%s，合计=%s",
-        usage.get("input_tokens"), usage.get("output_tokens"), usage.get("total_tokens"),
+        usage.get("input_tokens"),
+        usage.get("output_tokens"),
+        usage.get("total_tokens"),
     )
 
 
@@ -278,7 +281,10 @@ else:
     logger.info("约束校验全部通过（共 %d 项）", len(checks))
 logger.info(
     "校验统计：段落数=%d，感叹号=%d，道歉=%d，I understand=%d",
-    len(paragraphs), exclamation_count, apology_count, understand_count,
+    len(paragraphs),
+    exclamation_count,
+    apology_count,
+    understand_count,
 )
 
 print("\n" + "=" * 70)

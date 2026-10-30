@@ -52,6 +52,8 @@
 
 import json
 import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
@@ -63,9 +65,6 @@ from langchain_core.messages import (
 )
 from langchain_core.prompts import PromptTemplate
 from langchain_deepseek import ChatDeepSeek
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -123,9 +122,7 @@ Now, please respond to this customer message: {customer_message}
 
 # PromptTemplate 会解析模板里的 {customer_message}，
 # 声明 input_variables 后，运行时可以安全地传入对应关键字参数。
-few_shot_prompt = PromptTemplate(
-    input_variables=["customer_message"], template=few_shot_template
-)
+few_shot_prompt = PromptTemplate(input_variables=["customer_message"], template=few_shot_template)
 
 # --------------------------------------------------------------------------- #
 # 2. 准备真实输入（待处理的客户消息）
@@ -153,12 +150,12 @@ is what I get? I want my money back immediately!
 # 这里为了保持演示简洁，仍然采用单字符串模板的写法。
 few_shot_agent = create_agent(
     model=llm,
-    system_prompt=SystemMessage(
-        content=few_shot_prompt.format(customer_message=customer_message)
-    ),
+    system_prompt=SystemMessage(content=few_shot_prompt.format(customer_message=customer_message)),
 )
-logger.info("Agent 创建完成，提示词（含示例）渲染后长度=%d 字符",
-             len(few_shot_prompt.format(customer_message=customer_message)))
+logger.info(
+    "Agent 创建完成，提示词（含示例）渲染后长度=%d 字符",
+    len(few_shot_prompt.format(customer_message=customer_message)),
+)
 
 # --------------------------------------------------------------------------- #
 # 4. 调用 Agent
@@ -172,7 +169,7 @@ try:
     result = few_shot_agent.invoke(
         {"messages": [HumanMessage(content="Please respond to my message.")]}
     )
-except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+except Exception:
     log_exception(logger, "Agent 调用失败")
     raise
 
@@ -181,7 +178,9 @@ usage = getattr(result["messages"][-1], "usage_metadata", None)
 if usage:
     logger.info(
         "token 用量：输入=%s，输出=%s，合计=%s",
-        usage.get("input_tokens"), usage.get("output_tokens"), usage.get("total_tokens"),
+        usage.get("input_tokens"),
+        usage.get("output_tokens"),
+        usage.get("total_tokens"),
     )
 
 
@@ -293,8 +292,9 @@ if failed:
     logger.warning("风格指纹自检未通过，失败项：%s", failed)
 else:
     logger.info("风格指纹自检全部通过（共 %d 项）", len(checks))
-logger.info("回答统计：长度=%d 字符，句数=%d，以问句结尾=%s",
-            len(answer), len(sentences), has_question)
+logger.info(
+    "回答统计：长度=%d 字符，句数=%d，以问句结尾=%s", len(answer), len(sentences), has_question
+)
 
 for name, ok in checks.items():
     print(f"[{'PASS' if ok else 'FAIL'}] {name}")

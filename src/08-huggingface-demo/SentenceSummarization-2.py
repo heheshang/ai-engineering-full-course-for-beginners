@@ -41,10 +41,10 @@ from pathlib import Path
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import torch  # noqa: E402
-from transformers import pipeline  # noqa: E402
+import torch
+from transformers import pipeline
 
-from utils.logging_utils import get_logger  # noqa: E402
+from utils.logging_utils import get_logger
 
 # 初始化 logger
 logger = get_logger(__name__)
@@ -62,9 +62,7 @@ else:
     logger.info("未检测到 CUDA 设备，将在 CPU 上以 bfloat16 运行（速度较慢但结果一致）")
 
 # torch_dtype=torch.bfloat16：把模型权重以 bfloat16 加载，显存占用减半
-summarizer = pipeline(
-    task="text-generation", model=MODEL_NAME, torch_dtype=torch.bfloat16
-)
+summarizer = pipeline(task="text-generation", model=MODEL_NAME, torch_dtype=torch.bfloat16)
 logger.info("摘要模型加载完成")
 
 # --------------------------------------------------------------------------- #
@@ -96,9 +94,7 @@ summary = summarizer(text, min_length=10, max_length=100)
 
 generated_text = summary[0]["generated_text"]
 # 与上一个文件同理：text-generation pipeline 的输出包含原文 + 续写部分
-summary_part = (
-    generated_text.split("\n\n", 1)[1] if "\n\n" in generated_text else generated_text
-)
+summary_part = generated_text.split("\n\n", 1)[1] if "\n\n" in generated_text else generated_text
 summary_part = summary_part.strip()
 
 print(summary)

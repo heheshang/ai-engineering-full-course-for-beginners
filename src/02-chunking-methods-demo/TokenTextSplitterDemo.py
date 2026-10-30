@@ -28,9 +28,9 @@ from pathlib import Path
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from langchain_text_splitters import TokenTextSplitter  # noqa: E402
+from langchain_text_splitters import TokenTextSplitter
 
-from utils.logging_utils import get_logger  # noqa: E402
+from utils.logging_utils import get_logger
 
 # 初始化 logger：日志同时输出到控制台和 logs/course.log
 logger = get_logger(__name__)
@@ -96,7 +96,8 @@ try:
     token_counts = [len(encoding.encode(chunk)) for chunk in chunks]
     logger.info(
         "切分完成：原文 %d 字符 -> %d 个片段（token 数：最少 %d，最多 %d，平均 %.1f）",
-        len(sample_text), len(chunks),
+        len(sample_text),
+        len(chunks),
         min(token_counts) if token_counts else 0,
         max(token_counts) if token_counts else 0,
         (sum(token_counts) / len(token_counts)) if token_counts else 0.0,

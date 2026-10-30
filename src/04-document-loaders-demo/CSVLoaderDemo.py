@@ -39,10 +39,8 @@
 
 import csv
 import json
-import tempfile
-from pathlib import Path
-
 import sys
+import tempfile
 from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
@@ -67,7 +65,7 @@ CSV_PATH = BASE_DIR / "data" / "products.csv"
 # --------------------------------------------------------------------------- #
 # 1. 方式一：CSVLoader（LangChain 统一接口）
 # --------------------------------------------------------------------------- #
-from langchain_community.document_loaders import CSVLoader  # noqa: E402
+from langchain_community.document_loaders import CSVLoader
 
 print("=" * 70)
 print("1) 方式一：CSVLoader —— 默认把每一行渲染成 '字段: 值' 的文本")
@@ -142,8 +140,10 @@ print("=" * 70)
 
 source_loader = CSVLoader(file_path=str(CSV_PATH), source_column="name")
 source_documents = source_loader.load()
-logger.info("source_column='name' 加载完成，共 %d 个 Document（metadata.source 指向业务字段）",
-             len(source_documents))
+logger.info(
+    "source_column='name' 加载完成，共 %d 个 Document（metadata.source 指向业务字段）",
+    len(source_documents),
+)
 
 print("--- 前 3 条的 metadata ---")
 for doc in source_documents[:3]:
@@ -166,8 +166,10 @@ meta_loader = CSVLoader(
     metadata_columns=["category", "stock", "price"],
 )
 meta_documents = meta_loader.load()
-logger.info("metadata_columns 模式加载完成，共 %d 个 Document（category/stock/price 已抽到 metadata）",
-             len(meta_documents))
+logger.info(
+    "metadata_columns 模式加载完成，共 %d 个 Document（category/stock/price 已抽到 metadata）",
+    len(meta_documents),
+)
 
 print("--- documents[0].page_content ---")
 print(meta_documents[0].page_content)
@@ -188,8 +190,10 @@ content_loader = CSVLoader(
     content_columns=["name", "description"],
 )
 content_documents = content_loader.load()
-logger.info("content_columns 模式加载完成，共 %d 个 Document（正文只含 name/description）",
-             len(content_documents))
+logger.info(
+    "content_columns 模式加载完成，共 %d 个 Document（正文只含 name/description）",
+    len(content_documents),
+)
 
 print("--- documents[0].page_content ---")
 print(content_documents[0].page_content)

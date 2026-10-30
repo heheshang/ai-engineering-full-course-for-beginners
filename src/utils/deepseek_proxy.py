@@ -32,6 +32,8 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -40,9 +42,6 @@ from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Route
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -192,9 +191,7 @@ def _prepare_upstream_body(body: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     return upstream, False
 
 
-def _restore_response(
-    response: dict[str, Any], used_structured_tool: bool
-) -> dict[str, Any]:
+def _restore_response(response: dict[str, Any], used_structured_tool: bool) -> dict[str, Any]:
     """把 DeepSeek 的响应还原成 OpenAI 客户端期待的形态。
 
     DeepSeek 的 tool-calling 已经和 OpenAI 兼容，所以这里主要做两件事：
@@ -215,7 +212,7 @@ def _restore_response(
             content = message.get("content")
             if isinstance(content, str) and content.strip():
                 stripped = content.strip()
-                if stripped.startswith("{") or stripped.startswith("["):
+                if stripped.startswith(("{", "[")):
                     structured = _normalize_json_text(stripped)
         if structured is not None:
             message["content"] = structured
@@ -290,7 +287,8 @@ async def _proxy_to_deepseek(body: dict[str, Any]) -> dict[str, Any]:
             upstream_body = {**upstream_body, "max_tokens": base * 4}
             logger.warning(
                 "响应被 max_tokens=%d 截断，自动提高上限到 %d 重试",
-                base, base * 4,
+                base,
+                base * 4,
             )
     if os.getenv("PROXY_DEBUG"):
         # 调试模式：逐个检查 tool-call 的 arguments 是否是合法 JSON，
@@ -307,8 +305,10 @@ async def _proxy_to_deepseek(body: dict[str, Any]) -> dict[str, Any]:
                     status = f"INVALID ({exc})"
                 logger.debug(
                     "tool=%s len=%d finish=%s -> %s",
-                    function.get("name"), len(arguments),
-                    choice.get("finish_reason"), status,
+                    function.get("name"),
+                    len(arguments),
+                    choice.get("finish_reason"),
+                    status,
                 )
                 if status != "ok":
                     logger.debug("原始 arguments=%r", arguments)
@@ -389,16 +389,16 @@ async def models(request: Request) -> Any:
     """GET /v1/models - 透传 DeepSeek 的模型列表。"""
     headers = {"Authorization": f"Bearer {DEEPSEEK_API_KEY}"}
     async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(
-            f"{DEEPSEEK_BASE_URL.rstrip('/')}/models", headers=headers
-        )
+        response = await client.get(f"{DEEPSEEK_BASE_URL.rstrip('/')}/models", headers=headers)
     logger.info("透传模型列表完成，状态码=%d", response.status_code)
     return JSONResponse(response.json(), status_code=response.status_code)
 
 
 async def health(request: Request) -> Any:
     """GET /health"""
-    logger.info("健康检查：upstream=%s, key_configured=%s", DEEPSEEK_BASE_URL, bool(DEEPSEEK_API_KEY))
+    logger.info(
+        "健康检查：upstream=%s, key_configured=%s", DEEPSEEK_BASE_URL, bool(DEEPSEEK_API_KEY)
+    )
     return JSONResponse(
         {
             "status": "ok",

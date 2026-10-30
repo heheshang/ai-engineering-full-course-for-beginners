@@ -38,9 +38,9 @@ from pathlib import Path
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer  # noqa: E402
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-from utils.logging_utils import get_logger  # noqa: E402
+from utils.logging_utils import get_logger
 
 # 初始化 logger
 logger = get_logger(__name__)
@@ -62,9 +62,7 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
 model.eval()  # 推理模式：关闭 dropout 等训练期行为
 
-logger.info(
-    "模型加载完成，模型参数量约 %.1fM", sum(p.numel() for p in model.parameters()) / 1e6
-)
+logger.info("模型加载完成，模型参数量约 %.1fM", sum(p.numel() for p in model.parameters()) / 1e6)
 
 # --------------------------------------------------------------------------- #
 # 2. 设置源语言

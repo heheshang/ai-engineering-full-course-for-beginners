@@ -52,6 +52,8 @@
 
 import json
 import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
@@ -63,9 +65,6 @@ from langchain_core.messages import (
 )
 from langchain_core.prompts import PromptTemplate
 from langchain_deepseek import ChatDeepSeek
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -167,10 +166,8 @@ logger.info("Agent 创建完成（RTCF 四区块结构）")
 # 只保留 HumanMessage 里的那一份；两种写法都能跑通，值得对比一下效果。
 logger.info("开始调用 Agent（RTCF 结构化提示）")
 try:
-    result = role_context_agent.invoke(
-        {"messages": [HumanMessage(content=customer_message)]}
-    )
-except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+    result = role_context_agent.invoke({"messages": [HumanMessage(content=customer_message)]})
+except Exception:
     log_exception(logger, "Agent 调用失败")
     raise
 
@@ -179,7 +176,9 @@ usage = getattr(result["messages"][-1], "usage_metadata", None)
 if usage:
     logger.info(
         "token 用量：输入=%s，输出=%s，合计=%s",
-        usage.get("input_tokens"), usage.get("output_tokens"), usage.get("total_tokens"),
+        usage.get("input_tokens"),
+        usage.get("output_tokens"),
+        usage.get("total_tokens"),
     )
 
 
@@ -296,8 +295,7 @@ ACTION_VERBS = (
 
 checks = {
     "1) 回应了客户的感受（致歉/共情）": any(
-        kw in lower_answer
-        for kw in ("sorry", "apolog", "understand", "frustrat", "unacceptable")
+        kw in lower_answer for kw in ("sorry", "apolog", "understand", "frustrat", "unacceptable")
     ),
     "2) 专业地处理了诉求（给出动作/方案）": any(
         kw in lower_answer
@@ -321,8 +319,9 @@ if failed:
     logger.warning("FORMAT 规则自检未通过，失败项：%s", failed)
 else:
     logger.info("FORMAT 规则自检全部通过（共 %d 项）", len(checks))
-logger.info("回答统计：段落数=%d，句子数=%d，长度=%d 字符",
-            len(paragraphs), len(sentences), len(answer))
+logger.info(
+    "回答统计：段落数=%d，句子数=%d，长度=%d 字符", len(paragraphs), len(sentences), len(answer)
+)
 
 for name, ok in checks.items():
     print(f"[{'PASS' if ok else 'FAIL'}] {name}")

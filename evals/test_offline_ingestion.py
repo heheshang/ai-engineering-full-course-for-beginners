@@ -32,9 +32,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
+from eval_config import build_g_eval
 from sut import load_chunk_documents, load_csv_documents
-from eval_config import build_g_eval, threshold
+
 from utils.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -83,11 +83,7 @@ def test_recursive_splitter_covers_whole_document():
         f"切分结果明显短于原文（{len(compact_combined)} vs {len(compact_original)}），疑似丢内容"
     )
 
-    missing = [
-        word
-        for word in set(compact_original.split())
-        if word not in compact_combined
-    ]
+    missing = [word for word in set(compact_original.split()) if word not in compact_combined]
     # 允许极少量因分隔符处理导致的差异
     assert len(missing) == 0, f"切分丢失了原文中的内容：{missing[:10]}"
 
@@ -102,25 +98,18 @@ def test_chunk_size_affects_sentence_integrity():
     chunk_size=150 时 15 个 chunk 里有 9 个以非句末标点结尾（被截断），
     chunk_size=200 时降到 4 个，chunk_size=250 时为 0 个。
     """
+
     def truncated_count(chunk_size: int) -> int:
         chunks = load_chunk_documents(chunk_size=chunk_size, chunk_overlap=30)
-        return sum(
-            1 for c in chunks if not c.rstrip().endswith((".", "!", "?"))
-        )
+        return sum(1 for c in chunks if not c.rstrip().endswith((".", "!", "?")))
 
     small = truncated_count(150)
     medium = truncated_count(200)
     large = truncated_count(250)
 
-    assert small > medium, (
-        f"更小的 chunk_size 没有带来更多截断（{small} vs {medium}）"
-    )
-    assert medium > large, (
-        f"chunk_size=200 的截断数应当多于 chunk_size=250（{medium} vs {large}）"
-    )
-    assert large == 0, (
-        f"chunk_size=250 时不应有截断，实际有 {large} 个片段以非句末标点结尾"
-    )
+    assert small > medium, f"更小的 chunk_size 没有带来更多截断（{small} vs {medium}）"
+    assert medium > large, f"chunk_size=200 的截断数应当多于 chunk_size=250（{medium} vs {large}）"
+    assert large == 0, f"chunk_size=250 时不应有截断，实际有 {large} 个片段以非句末标点结尾"
 
 
 def test_recursive_splitter_has_overlap():
@@ -146,9 +135,7 @@ def test_recursive_splitter_has_overlap():
         return 0
 
     overlaps = [overlap_len(chunks[i], chunks[i + 1]) for i in range(len(chunks) - 1)]
-    assert any(o > 0 for o in overlaps), (
-        f"相邻 chunk 之间未检测到重叠，重叠长度：{overlaps}"
-    )
+    assert any(o > 0 for o in overlaps), f"相邻 chunk 之间未检测到重叠，重叠长度：{overlaps}"
 
 
 def test_recursive_splitter_overlap_increases_redundancy():
@@ -157,7 +144,6 @@ def test_recursive_splitter_overlap_increases_redundancy():
     这是「重叠确实生效」的等价验证：
     同一个片段同时出现在相邻两个 chunk 中。
     """
-    from sut import RAG_DOCUMENT
 
     without = load_chunk_documents(chunk_size=200, chunk_overlap=0)
     with_overlap = load_chunk_documents(chunk_size=200, chunk_overlap=100)
@@ -169,9 +155,7 @@ def test_recursive_splitter_overlap_increases_redundancy():
     assert total_length(with_overlap) > total_length(without), (
         f"开启重叠后总长度未增加：{total_length(with_overlap)} vs {total_length(without)}"
     )
-    assert len(with_overlap) == len(without), (
-        "重叠不应当改变 chunk 数量，只应当增加重复内容"
-    )
+    assert len(with_overlap) == len(without), "重叠不应当改变 chunk 数量，只应当增加重复内容"
 
 
 def test_recursive_splitter_smaller_size_gives_more_chunks():
@@ -194,7 +178,6 @@ def test_token_splitter_uses_token_model():
     所以 token 数应明显小于字符数。
     """
     from langchain_text_splitters import TokenTextSplitter
-
     from sut import RAG_DOCUMENT
 
     splitter = TokenTextSplitter(chunk_size=50, chunk_overlap=10)
@@ -217,9 +200,7 @@ def test_csv_loader_reads_all_rows():
     with open(csv_path, encoding="utf-8") as f:
         expected_rows = sum(1 for _ in f) - 1  # 去掉表头
 
-    assert len(docs) == expected_rows, (
-        f"文档数不符：期望 {expected_rows}，实际 {len(docs)}"
-    )
+    assert len(docs) == expected_rows, f"文档数不符：期望 {expected_rows}，实际 {len(docs)}"
 
 
 def test_csv_loader_preserves_metadata():
@@ -270,9 +251,7 @@ def test_csv_loader_page_content_contains_fields():
     assert content.strip(), "page_content 为空"
     assert ": " in content, f"page_content 疑似不是「字段: 值」格式：{content[:100]}"
     # 不应包含文件名
-    assert "products.csv" not in content, (
-        f"page_content 疑似是文件名而非行内容：{content[:100]}"
-    )
+    assert "products.csv" not in content, f"page_content 疑似是文件名而非行内容：{content[:100]}"
 
 
 def test_html_loader_extracts_text():
@@ -302,9 +281,9 @@ def test_html_loader_keeps_tables():
 
     content = docs[0].page_content.lower()
     # Titanic 表格的关键列名
-    assert any(
-        keyword in content for keyword in ("pclass", "survived", "name", "sex")
-    ), f"未在提取内容中找到表格列名：{content[:300]}"
+    assert any(keyword in content for keyword in ("pclass", "survived", "name", "sex")), (
+        f"未在提取内容中找到表格列名：{content[:300]}"
+    )
 
 
 def test_html_loader_keeps_title_metadata():
@@ -322,9 +301,7 @@ def test_html_loader_keeps_title_metadata():
     assert metadata, "metadata 为空"
     assert "source" in metadata, f"metadata 缺少 source：{list(metadata.keys())}"
     assert "title" in metadata, f"metadata 缺少 title：{list(metadata.keys())}"
-    assert "Titanic" in metadata["title"], (
-        f"title 内容不符：{metadata['title']}"
-    )
+    assert "Titanic" in metadata["title"], f"title 内容不符：{metadata['title']}"
 
 
 @pytest.mark.skipif(

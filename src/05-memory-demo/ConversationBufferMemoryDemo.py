@@ -32,13 +32,11 @@
 """
 
 import os
-
-from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
-from langchain_deepseek import ChatDeepSeek
-
 import sys
 from pathlib import Path
+
+from dotenv import load_dotenv
+from langchain_deepseek import ChatDeepSeek
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -58,9 +56,7 @@ load_dotenv()
 # api_key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("API_KEY")
 api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("API_KEY")
 if not api_key:
-    raise RuntimeError(
-        "未找到 API Key，请在 .env 中设置 ANTHROPIC_API_KEY（或 API_KEY）"
-    )
+    raise RuntimeError("未找到 API Key，请在 .env 中设置 ANTHROPIC_API_KEY（或 API_KEY）")
 # Anthropic 客户端默认从环境变量 ANTHROPIC_API_KEY 读取密钥
 # os.environ["ANTHROPIC_API_KEY"] = api_key
 os.environ["DEEPSEEK_API_KEY"] = api_key
@@ -88,8 +84,8 @@ logger.info("LLM 初始化完成：model=deepseek-chat, temperature=0, max_token
 # =========================================================================== #
 # 路线 A（推荐）：LangGraph create_agent + checkpointer（短期记忆）
 # =========================================================================== #
-from langchain.agents import create_agent  # noqa: E402
-from langgraph.checkpoint.memory import InMemorySaver  # noqa: E402
+from langchain.agents import create_agent
+from langgraph.checkpoint.memory import InMemorySaver
 
 # checkpointer 负责「记住」每个 thread_id 下的全部消息与状态
 checkpointer = InMemorySaver()
@@ -103,7 +99,9 @@ agent = create_agent(
 
 # 同一个 thread_id = 同一段会话，模型就能记住前面说过的话
 CONFIG = {"configurable": {"thread_id": "mala-thread-1"}}
-logger.info("会话配置就绪：thread_id=%s，checkpointer=InMemorySaver", CONFIG["configurable"]["thread_id"])
+logger.info(
+    "会话配置就绪：thread_id=%s，checkpointer=InMemorySaver", CONFIG["configurable"]["thread_id"]
+)
 
 
 def ask(text: str) -> None:

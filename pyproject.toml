@@ -74,6 +74,79 @@ norecursedirs = [
     "__pycache__",
 ]
 
+[tool.ruff]
+# 统一格式化 / 静态检查配置（全项目共用同一份规则）
+target-version = "py314"
+line-length = 100
+extend-exclude = [
+    ".git",
+    ".venv",
+    "chroma_db",
+    "logs",
+    "evals/reports",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+select = [
+    "E4",   # pycodestyle 导入相关
+    "E7",   # pycodestyle 语句相关
+    "E9",   # pycodestyle 语法错误
+    "F",    # pyflakes
+    "I",    # isort 导入排序
+    "UP",   # pyupgrade 语法现代化
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "PIE",  # flake8-pie
+    "PT",   # flake8-pytest-style
+    "RET",  # flake8-return
+    "RUF",  # ruff 专属规则
+]
+ignore = [
+    # 行宽交给 formatter 处理，避免与 formatter 冲突
+    "E501",
+    # 演示代码里大量使用「先赋值再在后面使用」的写法
+    "RET504",
+    "SIM108",
+    # 多条 with 合并可读性反而更差
+    "SIM117",
+    # 函数默认值里调用工具函数是 LangChain 生态的常见写法
+    "B008",
+    # 类属性是 mutable 的：RAG/Agent 配置里大量使用
+    "RUF012",
+    # 项目注释与文档全部为中文，全角标点会被误判为「易混淆字符」
+    "RUF001",
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# conftest 需要先改 sys.path 再 import 同目录模块
+"evals/conftest.py" = ["E402"]
+# 演示脚本把 import 放在讲解注释之后，属于刻意的教学编排
+"src/**/*Demo.py" = ["E402"]
+
+[tool.ruff.lint.flake8-pytest-style]
+# 项目统一用 "a,b" 字符串形式声明 parametrize 参数名
+parametrize-names-type = "csv"
+
+[tool.ruff.lint.isort]
+known-first-party = ["utils", "ai_engineering_full_course_for_beginners"]
+combine-as-imports = true
+
+[tool.ruff.format]
+# 统一格式化风格：双引号、缩进空格、保留魔法尾逗号
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
 [build-system]
 requires = ["uv_build>=0.12.13,<0.13.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.17.3",
+]

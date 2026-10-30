@@ -10,13 +10,12 @@
 """
 
 import os
+import sys
+from pathlib import Path
 
 from crewai import LLM, Agent, Crew, Task
 from crewai_tools import ScrapeWebsiteTool, TXTSearchTool
 from dotenv import load_dotenv
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -50,7 +49,9 @@ llm = LLM(
     temperature=0.0,
     max_tokens=8000,
 )
-logger.info("LLM 初始化完成：model=openai/deepseek-chat, base_url=%s, max_tokens=8000", PROXY_BASE_URL)
+logger.info(
+    "LLM 初始化完成：model=openai/deepseek-chat, base_url=%s, max_tokens=8000", PROXY_BASE_URL
+)
 
 # ---------------------------------------------------------------------------
 # 2. 抓取 Wikipedia 页面
@@ -115,7 +116,10 @@ data_analyst = Agent(
 # ---------------------------------------------------------------------------
 # 5. 创建 Task
 # ---------------------------------------------------------------------------
-logger.info("创建 Task：description=%r", test_task_description := "Understand the topic and give the correct response")
+logger.info(
+    "创建 Task：description=%r",
+    test_task_description := "Understand the topic and give the correct response",
+)
 test_task = Task(
     description=test_task_description,
     tools=[search_tool],
@@ -131,7 +135,7 @@ crew = Crew(agents=[data_analyst], tasks=[test_task])
 
 try:
     output = crew.kickoff()
-except Exception as exc:  # noqa: BLE001 - 演示脚本，捕获后打印完整堆栈便于排查
+except Exception as exc:
     # 常见失败原因：本地代理未启动（连接被拒绝）、API Key 无效、模型返回超时
     logger.error("Crew 执行失败：%s", exc)
     logger.exception("Crew 执行异常详情")

@@ -1,4 +1,6 @@
 import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
@@ -6,9 +8,6 @@ from langchain.agents.middleware import ModelRetryMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
-
-import sys
-from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -22,9 +21,7 @@ logger = get_logger(__name__)
 load_dotenv()
 api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("API_KEY")
 if not api_key:
-    raise RuntimeError(
-        "未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）"
-    )
+    raise RuntimeError("未找到 API Key，请在 .env 中设置 DEEPSEEK_API_KEY（或 API_KEY）")
 # 再显式写回环境变量，供 init_chat_model 按 provider 自动读取。
 os.environ["DEEPSEEK_API_KEY"] = api_key
 # 1. 初始化模型 (使用 init_chat_model 替代旧的 OpenAI 类)
@@ -88,11 +85,7 @@ logger.info("测试 1/2 完成，答案长度=%d 字符", len(result["messages"]
 print("\n--- 测试语言模型工具 ---")
 logger.info("测试 2/2：通用问答")
 result = agent.invoke(
-    {
-        "messages": [
-            HumanMessage(content="what is the capital of the United States of America?")
-        ]
-    }
+    {"messages": [HumanMessage(content="what is the capital of the United States of America?")]}
 )
 print(result["messages"][-1].content)
 logger.info("测试 2/2 完成，答案长度=%d 字符", len(result["messages"][-1].content))

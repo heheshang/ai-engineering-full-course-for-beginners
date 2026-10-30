@@ -34,7 +34,7 @@ import pytest
 # 把 src 加入模块搜索路径
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from eval_config import build_g_eval, threshold  # noqa: E402
+from eval_config import build_g_eval, threshold
 
 
 # --------------------------------------------------------------------------- #
@@ -159,7 +159,6 @@ def test_math_agent_tool_correctness(judge, math_agent, name, question, expected
     from deepeval import assert_test
     from deepeval.metrics import ToolCorrectnessMetric
     from deepeval.test_case import LLMTestCase, ToolCall
-
     from langchain_core.messages import HumanMessage
 
     result = math_agent.invoke({"messages": [HumanMessage(content=question)]})
@@ -225,7 +224,6 @@ def test_math_agent_does_not_call_calculator_for_factual_question(judge, math_ag
     from deepeval import assert_test
     from deepeval.metrics import TaskCompletionMetric
     from deepeval.test_case import LLMTestCase
-
     from langchain_core.messages import HumanMessage
 
     question = "What is the capital of the United States of America?"
@@ -263,7 +261,6 @@ def test_math_agent_task_completion(judge, math_agent):
     from deepeval import assert_test
     from deepeval.metrics import TaskCompletionMetric
     from deepeval.test_case import LLMTestCase
-
     from langchain_core.messages import HumanMessage
 
     question = "What is 37593 times 67?"
@@ -295,7 +292,6 @@ def test_math_agent_exact_numeric_answer(judge, math_agent):
     """
     from deepeval import assert_test
     from deepeval.test_case import LLMTestCase
-
     from langchain_core.messages import HumanMessage
 
     question = "What is 37593 times 67?"

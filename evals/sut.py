@@ -104,10 +104,9 @@ def build_rag_pipeline(persist_directory: str | None = None):
         ``VectorStore`` 实例，可调用 ``.as_retriever()``。
     """
     from langchain_chroma import Chroma
+    from langchain_core.documents import Document
     from langchain_huggingface import HuggingFaceEmbeddings
     from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-    from langchain_core.documents import Document
 
     logger.info("构建 RAG 向量库（评测模式，内存存储）")
 
@@ -221,7 +220,7 @@ def retrieve_context(retriever, question: str, k: int | None = None) -> list[str
         # 沿用 retriever 自身的 search_kwargs（与 Agent 内部保持一致）
         docs = retriever.invoke(question)
     else:
-        docs = retriever.invoke(question, **{"k": k})
+        docs = retriever.invoke(question, k=k)
     logger.info("检索完成：命中 %d 个 chunk", len(docs))
     return [doc.page_content for doc in docs]
 
@@ -324,9 +323,7 @@ def load_chunk_documents(chunk_size: int = 100, chunk_overlap: int = 20) -> list
     """
     from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size, chunk_overlap=chunk_overlap
-    )
+    splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     chunks = splitter.split_text(RAG_DOCUMENT)
     logger.info("切分完成：%d 个 chunk（chunk_size=%d）", len(chunks), chunk_size)
     return chunks

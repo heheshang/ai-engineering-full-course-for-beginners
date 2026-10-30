@@ -22,18 +22,18 @@ import sys
 from pathlib import Path
 
 # 要注入的 import 片段
-IMPORT_BLOCK = '''import sys
+IMPORT_BLOCK = """import sys
 from pathlib import Path
 
 # 把 src 加入模块搜索路径，保证能 import 到 src/utils 下的公共工具
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-'''
+"""
 
-LOGGER_BLOCK = '''from utils.logging_utils import get_logger{extra}
+LOGGER_BLOCK = """from utils.logging_utils import get_logger{extra}
 
 # 初始化 logger：日志同时输出到控制台和 logs/course.log
 logger = get_logger(__name__)
-'''
+"""
 
 
 def _module_docstring_end(lines: list[str]) -> int:
